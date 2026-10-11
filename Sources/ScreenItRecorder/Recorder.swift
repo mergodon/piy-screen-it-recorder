@@ -67,7 +67,7 @@ final class Recorder: NSObject, ObservableObject {
             // An ad-hoc build is a new app to macOS after every rebuild, so this is the usual failure.
             guard CGPreflightScreenCaptureAccess() else {
                 CGRequestScreenCaptureAccess()
-                throw RecError("Allow ScreenItRecorder in System Settings → Privacy & Security → "
+                throw RecError("Allow Screen It Recorder in System Settings → Privacy & Security → "
                     + "Screen & System Audio Recording, then quit and reopen it")
             }
             try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)

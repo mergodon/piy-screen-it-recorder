@@ -85,7 +85,7 @@ struct MenuView: View {
             .keyboardShortcut(",")
         Button("Open Recordings Folder") { rec.openFolder() }
         Divider()
-        Button("Quit ScreenItRecorder") { NSApp.terminate(nil) }
+        Button("Quit Screen It Recorder") { NSApp.terminate(nil) }
             .keyboardShortcut("q")
     }
 }

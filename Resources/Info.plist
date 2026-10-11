@@ -3,9 +3,9 @@
 <plist version="1.0">
 <dict>
 	<key>CFBundleName</key>
-	<string>ScreenItRecorder</string>
+	<string>Screen It Recorder</string>
 	<key>CFBundleDisplayName</key>
-	<string>ScreenItRecorder</string>
+	<string>Screen It Recorder</string>
 	<key>CFBundleIdentifier</key>
 	<string>com.mergodon.ScreenItRecorder</string>
 	<key>CFBundleExecutable</key>
@@ -23,8 +23,8 @@
 	<key>LSUIElement</key>
 	<true/>
 	<key>NSCameraUsageDescription</key>
-	<string>ScreenItRecorder records the camera you choose into its own file, next to the screen recordings.</string>
+	<string>Screen It Recorder records the camera you choose into its own file, next to the screen recordings.</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>ScreenItRecorder records your microphone into each screen file so the clips can be synced.</string>
+	<string>Screen It Recorder records your microphone into each screen file so the clips can be synced.</string>
 </dict>
 </plist>

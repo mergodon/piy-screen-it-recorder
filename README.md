@@ -1,6 +1,6 @@
 <img src="docs/icon.png" width="128" alt="S|R">
 
-# ScreenItRecorder
+# Screen It Recorder
 
 A small macOS menu bar app that records **every display to its own file**, with your
 microphone in each file. Drop the files into Final Cut Pro and sync them on the audio.
@@ -36,7 +36,7 @@ Recordings go to `~/Movies/ScreenItRecorder/<date_time>/screen0.mov`, `screen1.m
 
 ```sh
 tools/make-local-signing-cert.sh   # once per Mac: keeps permissions across rebuilds
-./build.sh --install               # builds, replaces /Applications/ScreenItRecorder.app, relaunches
+./build.sh --install               # builds, replaces /Applications/Screen It Recorder.app, relaunches
 ```
 
 Click **S|R** in the menu bar, choose your microphone, then click **Start Recording**, or press **⌃⌥⇧R** anywhere to start and stop.
@@ -54,7 +54,7 @@ SIGN_ID="Developer ID Application: <your name> (<team id>)" ./build.sh
 Smoke test without the UI (records 5 s, then quits; add `--green` to record over the green screen):
 
 ```sh
-build/ScreenItRecorder.app/Contents/MacOS/ScreenItRecorder --test 5
+"build/Screen It Recorder.app/Contents/MacOS/ScreenItRecorder" --test 5
 ```
 
 ## Command-line alternative

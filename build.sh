@@ -1,5 +1,5 @@
 #!/usr/bin/env zsh
-# Build build/ScreenItRecorder.app; `--install` also replaces /Applications/ScreenItRecorder.app
+# Build "build/Screen It Recorder.app"; `--install` also replaces it in /Applications
 # and relaunches it.
 # Signing, in order: SIGN_ID (e.g. "Developer ID Application: …", adds the hardened runtime),
 # else the local identity from tools/make-local-signing-cert.sh, else ad hoc. Only a stable
@@ -7,11 +7,12 @@
 set -euo pipefail
 cd "${0:A:h}"
 
-APP=build/ScreenItRecorder.app
+APP="build/Screen It Recorder.app"
+INSTALLED="/Applications/Screen It Recorder.app"
 LOCAL_ID="ScreenItRecorder Local Signing"
 swift build -c release
 
-rm -rf "$APP" build/AppIcon.iconset
+rm -rf "$APP" build/ScreenItRecorder.app build/AppIcon.iconset
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources" build/AppIcon.iconset
 cp .build/release/ScreenItRecorder "$APP/Contents/MacOS/"
 cp Resources/Info.plist "$APP/Contents/"
@@ -36,10 +37,10 @@ codesign -dr - "$APP" 2>&1 | grep designated
 echo "Built $APP"
 
 if [[ "${1:-}" == "--install" ]]; then
-  osascript -e 'quit app "ScreenItRecorder"' 2>/dev/null || true
+  osascript -e 'quit app id "com.mergodon.ScreenItRecorder"' 2>/dev/null || true
   for _ in {1..20}; do pgrep -x ScreenItRecorder >/dev/null || break; sleep 0.5; done
-  rm -rf /Applications/ScreenItRecorder.app
+  rm -rf "$INSTALLED" /Applications/ScreenItRecorder.app  # second path: the pre-rename name
   cp -R "$APP" /Applications/
-  open /Applications/ScreenItRecorder.app
-  echo "Installed /Applications/ScreenItRecorder.app"
+  open "$INSTALLED"
+  echo "Installed $INSTALLED"
 fi

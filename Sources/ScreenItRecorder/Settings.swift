@@ -11,7 +11,7 @@ enum SettingsWindow {
     static func show() {
         if window == nil {
             let w = NSWindow(contentViewController: NSHostingController(rootView: SettingsView()))
-            w.title = "ScreenItRecorder Settings"
+            w.title = "Screen It Recorder Settings"
             w.styleMask = [.titled, .closable]
             w.isReleasedWhenClosed = false
             w.center()
@@ -166,7 +166,7 @@ private struct PermissionsSection: View {
         } header: {
             Text("Permissions")
         } footer: {
-            Text("After you allow Screen Recording, quit and reopen ScreenItRecorder.")
+            Text("After you allow Screen Recording, quit and reopen Screen It Recorder.")
                 .font(.caption).foregroundStyle(.secondary)
         }
     }
