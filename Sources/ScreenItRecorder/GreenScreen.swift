@@ -54,6 +54,7 @@ final class GreenScreen: ObservableObject {
 
     func show() {
         guard !isOn else { return }
+        Playback.shared.stop()  // both cover the displays at the same level
         for screen in NSScreen.screens {
             let w = GreenWindow(contentRect: screen.frame, styleMask: .borderless, backing: .buffered, defer: false)
             w.level = .screenSaver  // above the menu bar and the Dock

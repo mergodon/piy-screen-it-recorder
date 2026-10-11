@@ -3,23 +3,30 @@ import Combine
 import AppKit
 import SwiftUI
 
-/// One AppKit-hosted window: opens reliably from a menu bar app, the hotkeys, or `--settings`.
+/// AppKit-hosted SwiftUI windows, one per title: open reliably from a menu bar app, the hotkeys,
+/// or a launch flag.
 @MainActor
-enum SettingsWindow {
-    private static var window: NSWindow?
+enum HostedWindow {
+    private static var windows: [String: NSWindow] = [:]
 
-    static func show() {
-        if window == nil {
-            let w = NSWindow(contentViewController: NSHostingController(rootView: SettingsView()))
-            w.title = "Screen It Recorder Settings"
+    static func show<V: View>(_ title: String, _ view: @autoclosure () -> V) {
+        let window = windows[title] ?? {
+            let w = NSWindow(contentViewController: NSHostingController(rootView: view()))
+            w.title = title
             w.styleMask = [.titled, .closable]
             w.isReleasedWhenClosed = false
             w.center()
-            window = w
-        }
+            windows[title] = w
+            return w
+        }()
         NSApp.activate()  // a menu bar app's window opens behind the front app otherwise
-        window?.makeKeyAndOrderFront(nil)
+        window.makeKeyAndOrderFront(nil)
     }
+}
+
+@MainActor
+enum SettingsWindow {
+    static func show() { HostedWindow.show("Screen It Recorder Settings", SettingsView()) }
 }
 
 struct SettingsView: View {
@@ -87,6 +94,9 @@ struct SettingsView: View {
             Section("Shortcuts") {
                 LabeledContent("Start / stop recording", value: "⌃⌥⇧R")
                 LabeledContent("Green / blue screen on / off", value: "⌃⌥G  (Esc also turns it off)")
+                LabeledContent("Playback: play / pause", value: "⌃⌥P  (Space too)")
+                LabeledContent("Playback: restart", value: "⌃⌥⇧P")
+                LabeledContent("Playback: stop", value: "Esc")
             }
 
             PermissionsSection()

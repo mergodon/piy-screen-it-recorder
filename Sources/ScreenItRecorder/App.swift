@@ -30,10 +30,42 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
 
+        // ⌃⌥P / ⌃⌥⇧P are free in FCP's Default.commandset (checked 2026-10-11).
+        HotKey.register(keyCode: kVK_ANSI_P, modifiers: controlKey | optionKey) {
+            Task { @MainActor in Playback.shared.togglePlay() }
+        }
+        HotKey.register(keyCode: kVK_ANSI_P, modifiers: controlKey | optionKey | shiftKey) {
+            Task { @MainActor in Playback.shared.restart() }
+        }
+
         if CommandLine.arguments.contains("--settings") { MainActor.assumeIsolated { SettingsWindow.show() } }
+        if CommandLine.arguments.contains("--playback") { MainActor.assumeIsolated { PlaybackPanel.show() } }
 
         // `--test <seconds> [--green]`: record (optionally over green), stop, quit — a headless smoke test.
         let args = CommandLine.arguments
+
+        // `--test-play <seconds> [folder]`: play the latest recording (or that folder) with the saved playback settings,
+        // print how far apart the displays' frames are, stop, quit.
+        if let i = args.firstIndex(of: "--test-play"), i + 1 < args.count, let secs = Double(args[i + 1]) {
+            setvbuf(stdout, nil, _IOLBF, 0)  // a killed test still shows how far it got
+            // Watchdog: a hung test must never leave the displays covered.
+            DispatchQueue.main.asyncAfter(deadline: .now() + secs + 20) { print("watchdog: test hung"); exit(2) }
+            Task { @MainActor in
+                let play = Playback.shared
+                if i + 2 < args.count, !args[i + 2].hasPrefix("-") {
+                    await play.use(folder: URL(filePath: args[i + 2], directoryHint: .isDirectory))
+                }
+                await play.start()
+                guard play.isActive else { print(play.status); exit(1) }
+                let end = ContinuousClock.now + .seconds(secs)
+                while ContinuousClock.now < end {
+                    try? await Task.sleep(for: .seconds(1))
+                    print(play.status, String(format: "spread %.3fs", play.spread))
+                }
+                play.stop()
+                exit(0)
+            }
+        }
         if let i = args.firstIndex(of: "--test"), i + 1 < args.count, let secs = Double(args[i + 1]) {
             Task { @MainActor in
                 let rec = Recorder.shared
@@ -61,13 +93,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // Never leave the displays dimmed by the green screen.
     func applicationWillTerminate(_ note: Notification) {
-        MainActor.assumeIsolated { GreenScreen.shared.hide() }
+        MainActor.assumeIsolated {
+            GreenScreen.shared.hide()
+            Playback.shared.stop()
+        }
     }
 }
 
 struct MenuView: View {
     @EnvironmentObject var rec: Recorder
     @EnvironmentObject var green: GreenScreen
+    @ObservedObject private var play = Playback.shared
 
     var body: some View {
         Text(rec.status)
@@ -80,6 +116,18 @@ struct MenuView: View {
         Button(green.isOn ? "\(green.shade.family) Screen Off (⌃⌥G / Esc)" : "\(green.shade.family) Screen On (⌃⌥G)") {
             green.toggle()
         }
+        Divider()
+        if play.isActive {
+            Text(play.status)
+            Button(play.state == .paused || play.state == .ended ? "Resume Playback (⌃⌥P)" : "Pause Playback (⌃⌥P)") {
+                play.togglePlay()
+            }
+            Button("Restart Playback (⌃⌥⇧P)") { play.restart() }
+            Button("Stop Playback (Esc)") { play.stop() }
+        } else {
+            Button(play.followsLatest ? "Play Latest Recording (⌃⌥P)" : "Play Chosen Videos (⌃⌥P)") { play.togglePlay() }
+        }
+        Button("Playback…") { PlaybackPanel.show() }
         Divider()
         Button("About Screen It Recorder") { About.showPanel() }
         Button("Settings…") { SettingsWindow.show() }
