@@ -170,9 +170,11 @@ final class Playback: ObservableObject {
             screens.first { Backlight.displayID($0) == id }.map { ($0, url) }
         }
         guard !targets.isEmpty else {
-            lastError = files.isEmpty ? "nothing to play — choose a recording or a file"
-                : "the chosen displays are not connected"
+            lastError = files.isEmpty ? "nothing to play" : "displays not connected"
             PlaybackPanel.show()
+            ErrorAlert.show("Nothing to play", files.isEmpty
+                ? "There is no recording yet. Choose a recording folder or a video in the Playback window."
+                : "The displays for the chosen videos are not connected. Choose a video for a connected display.")
             return
         }
         lastError = nil
@@ -206,8 +208,9 @@ final class Playback: ObservableObject {
             }
             duration = longest
         } catch {
-            lastError = error.localizedDescription
+            lastError = "could not start"
             stop()
+            ErrorAlert.show("Playback could not start", error.localizedDescription)
             return
         }
         guard state != .idle, let leader else { return }  // stopped while loading

@@ -38,7 +38,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             Task { @MainActor in Playback.shared.restart() }
         }
 
-        if CommandLine.arguments.contains("--settings") { MainActor.assumeIsolated { SettingsWindow.show() } }
+        // `--settings [recording|colour|shortcuts|permissions]`, `--about`, `--playback`: open that window.
+        let launch = CommandLine.arguments
+        if let i = launch.firstIndex(of: "--settings") {
+            let tabs: [String: SettingsWindow.Tab] = [
+                "recording": .recording, "colour": .colour, "shortcuts": .shortcuts, "permissions": .permissions,
+            ]
+            let tab = i + 1 < launch.count ? tabs[launch[i + 1]] : nil
+            MainActor.assumeIsolated { SettingsWindow.show(tab) }
+        }
+        if launch.contains("--about") { MainActor.assumeIsolated { About.show() } }
         if CommandLine.arguments.contains("--playback") { MainActor.assumeIsolated { PlaybackPanel.show() } }
 
         // `--test <seconds> [--green]`: record (optionally over green), stop, quit — a headless smoke test.
@@ -108,7 +117,7 @@ struct MenuView: View {
     var body: some View {
         Text(rec.status)
         if !Permission.allGranted {
-            Button("⚠︎ Permissions Needed…") { SettingsWindow.show() }
+            Button("⚠︎ Permissions Needed…") { SettingsWindow.show(.permissions) }
         }
         Button(rec.isRecording ? "Stop Recording (⌃⌥⇧R)" : "Start Recording (⌃⌥⇧R)") {
             Task { rec.isRecording ? await rec.stop() : await rec.start() }
@@ -129,7 +138,7 @@ struct MenuView: View {
         }
         Button("Playback…") { PlaybackPanel.show() }
         Divider()
-        Button("About Screen It Recorder") { About.showPanel() }
+        Button("About Screen It Recorder") { About.show() }
         Button("Settings…") { SettingsWindow.show() }
             .keyboardShortcut(",")
         Button("Open Recordings Folder") { rec.openFolder() }

@@ -26,16 +26,42 @@ enum HostedWindow {
 
 @MainActor
 enum SettingsWindow {
-    static func show() { HostedWindow.show("Screen It Recorder Settings", SettingsView()) }
+    enum Tab: Hashable { case recording, colour, shortcuts, permissions }
+
+    /// The selected tab, so the menu can open Settings on Permissions.
+    final class Selection: ObservableObject {
+        static let shared = Selection()
+        @Published var tab = Tab.recording
+    }
+
+    static func show(_ tab: Tab? = nil) {
+        if let tab { Selection.shared.tab = tab }
+        HostedWindow.show("Screen It Recorder Settings", SettingsView())
+    }
 }
 
 struct SettingsView: View {
+    @ObservedObject private var selection = SettingsWindow.Selection.shared
+
+    var body: some View {
+        TabView(selection: $selection.tab) {
+            RecordingTab().tabItem { Text("Recording") }.tag(SettingsWindow.Tab.recording)
+            ColourTab().tabItem { Text("Screen Colour") }.tag(SettingsWindow.Tab.colour)
+            ShortcutsTab().tabItem { Text("Shortcuts") }.tag(SettingsWindow.Tab.shortcuts)
+            PermissionsTab().tabItem { Text("Permissions") }.tag(SettingsWindow.Tab.permissions)
+        }
+        .padding()
+        .frame(width: 560)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+}
+
+private struct RecordingTab: View {
     @ObservedObject private var rec = Recorder.shared
-    @ObservedObject private var green = GreenScreen.shared
 
     var body: some View {
         Form {
-            Section("Recording") {
+            Section {
                 Picker("Microphone", selection: $rec.micID) {
                     Text("None").tag(String?.none)
                     ForEach(rec.mics, id: \.uniqueID) { Text($0.localizedName).tag(Optional($0.uniqueID)) }
@@ -67,9 +93,33 @@ struct SettingsView: View {
                         }
                     }
                 }
+            } footer: {
+                if rec.isRecording {
+                    Text("Stop the recording to change these.").font(.caption).foregroundStyle(.secondary)
+                }
             }
             .disabled(rec.isRecording)
+        }
+        .formStyle(.grouped)
+    }
 
+    private func chooseFolder() {
+        let panel = NSOpenPanel()
+        panel.title = "Choose where Screen It Recorder saves recordings"
+        panel.prompt = "Choose"
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.canCreateDirectories = true
+        panel.directoryURL = rec.folder
+        if panel.runModal() == .OK, let url = panel.url { rec.folder = url }
+    }
+}
+
+private struct ColourTab: View {
+    @ObservedObject private var green = GreenScreen.shared
+
+    var body: some View {
+        Form {
             Section {
                 Picker("Colour", selection: $green.shade) {
                     ForEach(GreenScreen.Shade.allCases) { Text($0.label).tag($0) }
@@ -83,45 +133,36 @@ struct SettingsView: View {
                 }
                 .disabled(!green.dim)
                 Button("Preview \(green.shade.family) Screen") { green.show() }
-            } header: {
-                Text("Green / blue screen")
             } footer: {
                 Text("Dimming changes only the backlight. The recording keeps the exact colour. "
                     + "Press ⌃⌥G or Esc to end the preview.")
                     .font(.caption).foregroundStyle(.secondary)
             }
-
-            Section("Shortcuts") {
-                LabeledContent("Start / stop recording", value: "⌃⌥⇧R")
-                LabeledContent("Green / blue screen on / off", value: "⌃⌥G  (Esc also turns it off)")
-                LabeledContent("Playback: play / pause", value: "⌃⌥P  (Space too)")
-                LabeledContent("Playback: restart", value: "⌃⌥⇧P")
-                LabeledContent("Playback: stop", value: "Esc")
-            }
-
-            PermissionsSection()
-
-            AboutSection()
         }
         .formStyle(.grouped)
-        .frame(width: 520)
-        .fixedSize(horizontal: false, vertical: true)
     }
 }
 
-extension SettingsView {
-    private func chooseFolder() {
-        let panel = NSOpenPanel()
-        panel.title = "Choose where Screen It Recorder saves recordings"
-        panel.prompt = "Choose"
-        panel.canChooseDirectories = true
-        panel.canChooseFiles = false
-        panel.canCreateDirectories = true
-        panel.directoryURL = rec.folder
-        if panel.runModal() == .OK, let url = panel.url { rec.folder = url }
+private struct ShortcutsTab: View {
+    var body: some View {
+        Form {
+            Section("Recording") {
+                LabeledContent("Start / stop recording", value: "⌃⌥⇧R")
+            }
+            Section("Screen colour") {
+                LabeledContent("Green / blue screen on / off", value: "⌃⌥G  (Esc also turns it off)")
+            }
+            Section("Playback") {
+                LabeledContent("Play / pause", value: "⌃⌥P  (Space too)")
+                LabeledContent("Restart", value: "⌃⌥⇧P")
+                LabeledContent("Stop", value: "Esc")
+            }
+        }
+        .formStyle(.grouped)
     }
 }
 
+@MainActor
 enum About {
     static let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "dev"
     static let repo = URL(string: "https://github.com/promptityourself/piy-screen-it-recorder")!
@@ -130,44 +171,75 @@ enum About {
     static let blurb = "Records every screen, and a camera if you want one, to separate files "
         + "with the same mic track, so Final Cut Pro can sync them."
     static let credit = "A Prompt It Yourself project. MIT licence. © 2026 Mergodon Limited."
+    /// The same list, in the same order, as the promptityourself.com footer.
+    static let channels: [(name: String, url: URL)] = [
+        ("YouTube", "https://www.youtube.com/@promptityourself"),
+        ("Facebook", "https://www.facebook.com/promptityourself"),
+        ("Twitch", "https://www.twitch.tv/promptityourself"),
+        ("X", "https://x.com/promptityoursel"),
+        ("Threads", "https://www.threads.com/@prompt_it_yourself"),
+        ("Instagram", "https://www.instagram.com/prompt_it_yourself/"),
+        ("LinkedIn", "https://www.linkedin.com/company/promptityourself/"),
+        ("Pinterest", "https://www.pinterest.com/promptityourself/"),
+        ("TikTok", "https://www.tiktok.com/@promptityourself"),
+        ("GitHub", "https://github.com/promptityourself"),
+    ].map { ($0.0, URL(string: $0.1)!) }
 
-    /// The standard About panel, with the blurb and links as credits.
-    @MainActor static func showPanel() {
-        let credits = NSMutableAttributedString(string: blurb + "\n\n", attributes: [
-            .font: NSFont.systemFont(ofSize: 11), .foregroundColor: NSColor.labelColor,
-        ])
-        for (title, url) in [("Prompt It Yourself", site), ("Source on GitHub", repo)] {
-            credits.append(NSAttributedString(string: title, attributes: [.link: url, .font: NSFont.systemFont(ofSize: 11)]))
-            credits.append(NSAttributedString(string: "   "))
+    static func show() { HostedWindow.show("About Screen It Recorder", AboutView()) }
+}
+
+private struct AboutView: View {
+    var body: some View {
+        VStack(spacing: 10) {
+            Image(nsImage: NSApp.applicationIconImage).resizable().frame(width: 96, height: 96)
+            Text("Screen It Recorder").font(.title2.bold())
+            Text("Version \(About.version)").foregroundStyle(.secondary)
+            Text(About.blurb).multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
+            HStack(spacing: 16) {
+                Link("Prompt It Yourself", destination: About.site)
+                Link("Source on GitHub", destination: About.repo)
+            }
+            Divider().padding(.vertical, 4)
+            Text("Support").font(.headline)
+            Text("Follow our channels:").foregroundStyle(.secondary)
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 5), spacing: 8) {
+                ForEach(About.channels, id: \.name) { Link($0.name, destination: $0.url) }
+            }
+            Divider().padding(.vertical, 4)
+            Text(About.credit).font(.caption).foregroundStyle(.secondary)
         }
-        credits.append(NSAttributedString(string: "\n\n" + credit, attributes: [
-            .font: NSFont.systemFont(ofSize: 10), .foregroundColor: NSColor.secondaryLabelColor,
-        ]))
-        let style = NSMutableParagraphStyle()
-        style.alignment = .center
-        credits.addAttribute(.paragraphStyle, value: style, range: NSRange(location: 0, length: credits.length))
-        NSApp.activate()
-        NSApp.orderFrontStandardAboutPanel(options: [.credits: credits])
+        .padding(24)
+        .frame(width: 440)
+        .fixedSize(horizontal: false, vertical: true)
     }
 }
 
-private struct AboutSection: View {
-    var body: some View {
-        Section("About") {
-            HStack(alignment: .top, spacing: 14) {
-                Image(nsImage: NSApp.applicationIconImage).resizable().frame(width: 56, height: 56)
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Screen It Recorder").font(.headline)
-                    Text("Version \(About.version)").foregroundStyle(.secondary)
-                    Text(About.blurb).fixedSize(horizontal: false, vertical: true)
-                    HStack(spacing: 16) {
-                        Link("Prompt It Yourself", destination: About.site)
-                        Link("Source on GitHub", destination: About.repo)
-                    }
-                    Text(About.credit).font(.caption).foregroundStyle(.secondary)
-                }
+/// Errors as an alert, not as menu text. One alert at a time: every stream can fail with the
+/// same error at once. Shown on the next run-loop turn, so the caller finishes its clean-up first.
+@MainActor
+enum ErrorAlert {
+    private static var showing = false
+
+    static func show(_ title: String, _ message: String, fix: Permission? = nil) {
+        let args = CommandLine.arguments
+        if args.contains("--test") || args.contains("--test-play") {
+            print("alert: \(title): \(message)")  // a modal alert would block a headless test
+            return
+        }
+        guard !showing else { return }
+        showing = true
+        DispatchQueue.main.async {
+            MainActor.assumeIsolated {
+                let alert = NSAlert()
+                alert.alertStyle = .warning
+                alert.messageText = title
+                alert.informativeText = message
+                alert.addButton(withTitle: "OK")
+                if fix != nil { alert.addButton(withTitle: "Open System Settings") }
+                NSApp.activate()
+                if alert.runModal() == .alertSecondButtonReturn { fix?.openSettings() }
+                showing = false
             }
-            .padding(.vertical, 4)
         }
     }
 }
@@ -223,10 +295,14 @@ private final class Ticker: ObservableObject {
     init() { timer = Timer.publish(every: 2, on: .main, in: .common).autoconnect().sink { [weak self] _ in self?.tick += 1 } }
 }
 
-private struct PermissionsSection: View {
+private struct PermissionsTab: View {
     @StateObject private var ticker = Ticker()
 
     var body: some View {
+        Form { permissions }.formStyle(.grouped)
+    }
+
+    private var permissions: some View {
         Section {
             let _ = ticker.tick
             ForEach(Permission.allCases) { p in
@@ -245,8 +321,6 @@ private struct PermissionsSection: View {
                     }
                 }
             }
-        } header: {
-            Text("Permissions")
         } footer: {
             Text("After you allow Screen Recording, quit and reopen Screen It Recorder.")
                 .font(.caption).foregroundStyle(.secondary)

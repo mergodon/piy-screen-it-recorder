@@ -51,6 +51,7 @@ final class Recorder: NSObject, ObservableObject {
     private var unfinished = 0
     private var awake: NSObjectProtocol?
     private var widgetsWereHidden: Bool?
+    private var session: String?  // the folder name of the current recording
 
     var mics: [AVCaptureDevice] {
         AVCaptureDevice.DiscoverySession(
@@ -131,7 +132,8 @@ final class Recorder: NSObject, ObservableObject {
             }
 
             isRecording = true
-            status = "● Recording \(streams.count) screens\(camera == nil ? "" : " + camera @ \(cameraFPS) fps") → \(stamp)"
+            session = stamp
+            status = "● Recording \(streams.count) screens\(camera == nil ? "" : " + camera")"
         } catch {
             camera?.stop()
             for stream in started { try? await stream.stopCapture() }
@@ -149,7 +151,7 @@ final class Recorder: NSObject, ObservableObject {
             await withCheckedContinuation { pendingFinishes.append($0) }
         }
         await teardown()
-        if lastError == nil { status = "Saved to \(folder.path(percentEncoded: false))" }
+        if lastError == nil { status = "Saved: \(session ?? "")" }
     }
 
     func openFolder() {
@@ -206,7 +208,12 @@ final class Recorder: NSObject, ObservableObject {
 
     private func fail(_ error: Error) {
         lastError = error.localizedDescription
-        status = "Error: \(error.localizedDescription)"
+        status = "Recording failed"
+        // Offer the System Settings pane when a missing permission is the likely cause.
+        let fix: Permission? = !CGPreflightScreenCaptureAccess() ? .screen
+            : cameraID != nil && Permission.camera.granted != true ? .camera
+            : micID != nil && Permission.microphone.granted != true ? .microphone : nil
+        ErrorAlert.show("Recording failed", error.localizedDescription, fix: fix)
     }
 }
 
