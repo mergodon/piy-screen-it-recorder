@@ -58,7 +58,8 @@ final class Recorder: NSObject, ObservableObject {
     /// How long stop() waits for the "finished" callbacks before it checks the files itself.
     static let saveTimeout: Duration = .seconds(10)
     nonisolated static let log = Logger(subsystem: "com.mergodon.ScreenItRecorder", category: "recorder")
-    private var outputs: [SCRecordingOutput] = []
+    private var outputs: [SCRecordingOutput] = []  // same order as `streams`
+    private var finishedOutputs: Set<ObjectIdentifier> = []
     private var files: [URL] = []  // every file of this session, to check when a callback never comes
     private var watchdog: Task<Void, Never>?
 
@@ -185,11 +186,18 @@ final class Recorder: NSObject, ObservableObject {
         defer { busy = false }
         status = "Saving…"
         camera?.stop()
-        for stream in streams { try? await stream.stopCapture() }
+        for (stream, output) in zip(streams, outputs) {
+            if finishedOutputs.contains(ObjectIdentifier(output)) {
+                // Already stopped from the macOS menu bar: stopping it again took ~35 s to return
+                // (2026-10-11), so do not wait for it.
+                Task { try? await stream.stopCapture() }
+            } else {
+                try? await stream.stopCapture()
+            }
+        }
         if unfinished > 0 {
-            // A file can finish without its callback: the macOS menu bar's Stop ends the files
-            // silently (measured on macOS 27.0.1). Never wait forever — that blocks the next
-            // recording and Quit — and judge the files themselves, not the missing callback.
+            // Never wait forever for a "finished" callback — that blocks the next recording and
+            // Quit — and judge the files themselves, not the missing callback.
             let timeout = Task {
                 try? await Task.sleep(for: Self.saveTimeout)
                 guard !Task.isCancelled, unfinished > 0 else { return }
@@ -248,6 +256,7 @@ final class Recorder: NSObject, ObservableObject {
         watchdog?.cancel()
         watchdog = nil
         outputs.removeAll()
+        finishedOutputs.removeAll()
         files.removeAll()
         streams.removeAll()
         started.removeAll()
@@ -260,9 +269,9 @@ final class Recorder: NSObject, ObservableObject {
         isRecording = false
     }
 
-    /// The macOS menu bar's screen-recording Stop ends every file but calls no delegate method
-    /// (macOS 27.0.1). So: when no file has grown for 6 s, the system stopped us — save and
-    /// report as a normal stop. A still screen still grows: the mic track and ~1 fps idle frames.
+    /// Backup for a recording that ends outside the app with no callback at all: when no file
+    /// has grown for 6 s, save and stop. A still screen still grows: the mic track and ~1 fps
+    /// idle frames. (The menu bar's Stop does send "finished" — see recordingOutputDidFinishRecording.)
     private func watchForSystemStop() {
         watchdog = Task { [weak self] in
             var last: [CMTime] = []
@@ -325,9 +334,20 @@ extension Recorder: SCStreamDelegate, SCRecordingOutputDelegate {
         Self.log.notice("stream became inactive")
     }
 
+    /// Also called when Stop is chosen in the macOS screen-recording menu in the menu bar. That
+    /// menu has one Stop per display and calls no SCStreamDelegate method (macOS 27.0.1), so a
+    /// file that finishes while still recording means: the user stopped it there — stop it all.
     nonisolated func recordingOutputDidFinishRecording(_ out: SCRecordingOutput) {
         Self.log.notice("file finished")
-        Task { @MainActor in self.finishedOne() }
+        let id = ObjectIdentifier(out)
+        Task { @MainActor in
+            self.finishedOutputs.insert(id)
+            self.finishedOne()
+            if self.isRecording, !self.busy {
+                Self.log.notice("file finished during the recording: stopped outside the app")
+                await self.stop()
+            }
+        }
     }
 
     nonisolated func recordingOutput(_ out: SCRecordingOutput, didFailWithError error: Error) {
