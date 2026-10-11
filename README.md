@@ -25,8 +25,8 @@ microphone in each file. Drop the files into Final Cut Pro and sync them on the 
 - Refuses to start with less than 10 GB free.
 - If you quit or log out during a recording, it saves the files first.
 
-Recordings go to `~/Movies/ScreenItRecorder/<date_time>/screen0.mov` by default (change it in
-Settings → Saves to; network drives work), `screen1.mov`, …
+Recordings go to `~/Movies/ScreenItRecorder/<date_time>/`: `screen0.mov`, `screen1.mov`, …, plus
+`camera.mov` when a camera is on. Change the folder in **Settings → Saves to**; network drives work.
 
 ## Requirements
 
