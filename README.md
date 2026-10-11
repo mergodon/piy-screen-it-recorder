@@ -7,6 +7,8 @@ microphone in each file. Drop the files into Final Cut Pro and sync them on the 
 
 - One `.mov` per display: HEVC (`hvc1`), about 2560×1440, 30 fps, plus AAC mic audio.
 - The same mic track is in every file, so **Synchronize Clips** in FCP lines them up. A clap at the start is a good backup.
+- **Camera (optional):** choose a camera in the menu (default **None**). It records 1080p HEVC
+  with the same mic track to `camera.mov`. The camera starts first, so it never misses the clap.
 - **Green screen:** press **⌃⌥G** (anywhere) to cover every display with solid green, so you can
   key other footage onto the screens later. Press ⌃⌥G or Esc to remove it. Choose
   `#00FF00` (default) or chroma `#00B140` in the menu. The recording stores the exact value.
@@ -31,7 +33,7 @@ open build/ScreenItRecorder.app
 ```
 
 Click **S|R** in the menu bar, choose your microphone, then click **Start Recording** (⌘R).
-The first time, macOS asks for Screen Recording and Microphone permission.
+The first time, macOS asks for Screen Recording, Microphone and (if you use one) Camera permission.
 
 `build.sh` signs the app ad hoc. macOS then asks for permission again after each rebuild.
 To sign with your Developer ID:

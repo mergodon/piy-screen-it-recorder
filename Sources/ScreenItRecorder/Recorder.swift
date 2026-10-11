@@ -24,6 +24,9 @@ final class Recorder: NSObject, ObservableObject {
     @Published var micID: String? {
         didSet { UserDefaults.standard.set(micID, forKey: "micID") }
     }
+    @Published var cameraID: String? {
+        didSet { UserDefaults.standard.set(cameraID, forKey: "cameraID") }
+    }
     @Published var hideWidgets: Bool {
         didSet { UserDefaults.standard.set(hideWidgets, forKey: "hideWidgets") }
     }
@@ -32,6 +35,8 @@ final class Recorder: NSObject, ObservableObject {
         .appending(path: "Movies/ScreenItRecorder", directoryHint: .isDirectory)
 
     private var streams: [SCStream] = []
+    private var started: [SCStream] = []
+    private var camera: CameraRecorder?
     private var pendingFinishes: [CheckedContinuation<Void, Never>] = []
     private var unfinished = 0
     private var awake: NSObjectProtocol?
@@ -47,6 +52,7 @@ final class Recorder: NSObject, ObservableObject {
         let d = UserDefaults.standard
         hideWidgets = d.object(forKey: "hideWidgets") as? Bool ?? true
         micID = d.string(forKey: "micID") ?? AVCaptureDevice.default(for: .audio)?.uniqueID
+        cameraID = d.string(forKey: "cameraID")  // off unless chosen
         super.init()
     }
 
@@ -67,6 +73,11 @@ final class Recorder: NSObject, ObservableObject {
 
             let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
             guard !content.displays.isEmpty else { throw RecError("No displays found") }
+            if let cameraID {
+                guard await AVCaptureDevice.requestAccess(for: .video) else { throw RecError("No camera permission") }
+                if micID != nil { _ = await AVCaptureDevice.requestAccess(for: .audio) }
+                camera = try CameraRecorder(cameraID: cameraID, micID: micID)
+            }
 
             if hideWidgets {
                 widgetsWereHidden = Widgets.hidden
@@ -80,11 +91,26 @@ final class Recorder: NSObject, ObservableObject {
                 streams.append(stream)
                 unfinished += 1
             }
-            for stream in streams { try await stream.startCapture() }
+            if let camera {
+                status = "Starting camera…"
+                unfinished += 1
+                await camera.start(to: dir.appending(path: "camera.mov")) { error in
+                    Task { @MainActor in
+                        if let error { self.fail(error) }
+                        self.finishedOne()
+                    }
+                }
+            }
+            for stream in streams {
+                try await stream.startCapture()
+                started.append(stream)
+            }
 
             isRecording = true
-            status = "● Recording \(streams.count) screens → \(stamp)"
+            status = "● Recording \(streams.count) screens\(camera == nil ? "" : " + camera") → \(stamp)"
         } catch {
+            camera?.stop()
+            for stream in started { try? await stream.stopCapture() }
             await teardown()
             fail(error)
         }
@@ -93,6 +119,7 @@ final class Recorder: NSObject, ObservableObject {
     func stop() async {
         guard isRecording else { return }
         status = "Saving…"
+        camera?.stop()
         for stream in streams { try? await stream.stopCapture() }
         if unfinished > 0 {
             await withCheckedContinuation { pendingFinishes.append($0) }
@@ -136,6 +163,8 @@ final class Recorder: NSObject, ObservableObject {
 
     private func teardown() async {
         streams.removeAll()
+        started.removeAll()
+        camera = nil
         unfinished = 0
         if let awake { ProcessInfo.processInfo.endActivity(awake) }
         awake = nil

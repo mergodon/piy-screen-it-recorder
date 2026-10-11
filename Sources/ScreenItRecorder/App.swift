@@ -67,6 +67,13 @@ struct MenuView: View {
             ForEach(rec.mics, id: \.uniqueID) { Text($0.localizedName).tag(Optional($0.uniqueID)) }
         }
         .disabled(rec.isRecording)
+        Picker("Camera", selection: $rec.cameraID) {
+            let cams = CameraRecorder.devices
+            let labels = CameraRecorder.labels(for: cams)
+            Text("None").tag(String?.none)
+            ForEach(cams, id: \.uniqueID) { Text(labels[$0.uniqueID]!).tag(Optional($0.uniqueID)) }
+        }
+        .disabled(rec.isRecording)
         Toggle("Hide Desktop Widgets While Recording", isOn: $rec.hideWidgets)
             .disabled(rec.isRecording)
         Divider()

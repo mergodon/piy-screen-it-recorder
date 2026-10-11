@@ -22,6 +22,8 @@
 	<string>15.0</string>
 	<key>LSUIElement</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>ScreenItRecorder records the camera you choose into its own file, next to the screen recordings.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>ScreenItRecorder records your microphone into each screen file so the clips can be synced.</string>
 </dict>
