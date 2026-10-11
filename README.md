@@ -9,9 +9,11 @@ microphone in each file. Drop the files into Final Cut Pro and sync them on the 
 - The same mic track is in every file, so **Synchronize Clips** in FCP lines them up. A clap at the start is a good backup.
 - **Camera (optional):** choose a camera in the menu (default **None**). It records 1080p HEVC at 30 fps (matches the screens); **Camera Frame Rate** offers every rate the camera supports, e.g. 50/60 for slow motion
   with the same mic track to `camera.mov`. The camera starts first, so it never misses the clap.
-- **Green screen:** press **⌃⌥G** (anywhere) to cover every display with solid green, so you can
-  key other footage onto the screens later. Press ⌃⌥G or Esc to remove it. Choose
-  `#00FF00` (default) or chroma `#00B140` in Settings. The recording stores the exact value.
+- **Green / blue screen:** press **⌃⌥G** (anywhere) to cover every display with a solid key
+  colour, so you can key other footage onto the screens later. Press ⌃⌥G or Esc to remove it.
+  Choose in Settings: pure green `#00FF00` (default), chroma green `#00B140`, pure blue
+  `#0000FF` or chroma blue `#0047BB`. Use blue when something green (a mic, a plant) is in
+  front of the screens. The recording stores the exact value.
   By default it also dims the displays to 40% while green is on (configurable), so the green
   does not flood the room. Only the backlight changes, so the file keeps the exact colour.
   (Dimming uses Apple's private DisplayServices framework; it works on Apple displays.)

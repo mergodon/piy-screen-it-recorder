@@ -11,3 +11,6 @@
 - Run the `--test` binary from the terminal: TCC then uses the terminal's Screen Recording + Mic grant.
   `open`-ing an ad-hoc build re-prompts after every rebuild.
 - `rec` / `widgets` are the ffmpeg CLI fallback; keep their behaviour in step with the app.
+- Tests share mate's prefs domain (`com.mergodon.ScreenItRecorder`). Read a key before a test
+  writes it and restore that value after — never `delete` or reset to a default. Never
+  `--install` (it quits the app) while his colour screen is up: check for layer-1000 windows first.

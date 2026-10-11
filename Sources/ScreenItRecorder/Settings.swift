@@ -60,7 +60,7 @@ struct SettingsView: View {
                 Picker("Colour", selection: $green.shade) {
                     ForEach(GreenScreen.Shade.allCases) { Text($0.label).tag($0) }
                 }
-                Toggle("Dim displays while green is on", isOn: $green.dim)
+                Toggle("Dim displays while the screen colour is on", isOn: $green.dim)
                 LabeledContent("Display brightness") {
                     HStack {
                         Slider(value: $green.dimLevel, in: 0.1...1, step: 0.05)
@@ -68,9 +68,9 @@ struct SettingsView: View {
                     }
                 }
                 .disabled(!green.dim)
-                Button("Preview Green Screen") { green.show() }
+                Button("Preview \(green.shade.family) Screen") { green.show() }
             } header: {
-                Text("Green screen")
+                Text("Green / blue screen")
             } footer: {
                 Text("Dimming changes only the backlight. The recording keeps the exact colour. "
                     + "Press ⌃⌥G or Esc to end the preview.")
@@ -79,7 +79,7 @@ struct SettingsView: View {
 
             Section("Shortcuts") {
                 LabeledContent("Start / stop recording", value: "⌃⌥⇧R")
-                LabeledContent("Green screen on / off", value: "⌃⌥G  (Esc also turns it off)")
+                LabeledContent("Green / blue screen on / off", value: "⌃⌥G  (Esc also turns it off)")
             }
 
             PermissionsSection()

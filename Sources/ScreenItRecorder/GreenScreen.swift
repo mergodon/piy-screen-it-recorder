@@ -1,7 +1,8 @@
 import AppKit
 import Carbon.HIToolbox
 
-/// Covers every display with solid chroma green, for keying screen content in later.
+/// Covers every display with a solid key colour (green or blue), for keying screen content in
+/// later. Blue is for shots with green props in front of the screens (e.g. a green mic).
 /// Toggle with ⌃⌥G (global) or the menu; Esc also turns it off. Optionally dims the
 /// backlight meanwhile — full-brightness green floods the room; the file keeps the exact colour.
 @MainActor
@@ -9,9 +10,13 @@ final class GreenScreen: ObservableObject {
     static let shared = GreenScreen()
 
     enum Shade: String, CaseIterable, Identifiable {
-        case pure = "00FF00", chroma = "00B140"
+        case pure = "00FF00", chroma = "00B140", pureBlue = "0000FF", chromaBlue = "0047BB"
         var id: String { rawValue }
-        var label: String { self == .pure ? "Pure Green #00FF00" : "Chroma Green #00B140" }
+        var family: String { self == .pure || self == .chroma ? "Green" : "Blue" }
+        var label: String {
+            let kind = self == .pure || self == .pureBlue ? "Pure" : "Chroma"
+            return "\(kind) \(family) #\(rawValue)"
+        }
         var color: NSColor {
             let v = Int(rawValue, radix: 16)!
             return NSColor(srgbRed: CGFloat(v >> 16 & 0xFF) / 255, green: CGFloat(v >> 8 & 0xFF) / 255,

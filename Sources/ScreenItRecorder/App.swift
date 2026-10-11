@@ -77,7 +77,9 @@ struct MenuView: View {
         Button(rec.isRecording ? "Stop Recording (⌃⌥⇧R)" : "Start Recording (⌃⌥⇧R)") {
             Task { rec.isRecording ? await rec.stop() : await rec.start() }
         }
-        Button(green.isOn ? "Green Screen Off (⌃⌥G / Esc)" : "Green Screen On (⌃⌥G)") { green.toggle() }
+        Button(green.isOn ? "\(green.shade.family) Screen Off (⌃⌥G / Esc)" : "\(green.shade.family) Screen On (⌃⌥G)") {
+            green.toggle()
+        }
         Divider()
         Button("Settings…") { SettingsWindow.show() }
             .keyboardShortcut(",")
