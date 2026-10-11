@@ -99,6 +99,29 @@ private struct RecordingTab: View {
                 }
             }
             .disabled(rec.isRecording)
+
+            Section {
+                Picker("Quality", selection: $rec.quality) {
+                    ForEach(Quality.allCases) { Text($0.label).tag($0) }
+                }
+                Picker("Resolution", selection: $rec.resolution) {
+                    ForEach(Resolution.allCases) { Text($0.label).tag($0) }
+                }
+                Picker("Codec", selection: $rec.codec) {
+                    ForEach(Codec.allCases) { Text($0.label).tag($0) }
+                }
+            } header: {
+                Text("Screen quality")
+            } footer: {
+                let gb = MeasuredRate.mbps(rec.codec, rec.resolution, rec.quality) * 3600 / 8 / 1000
+                let mbs = rec.bytesPerSecond / 1_000_000
+                Text("About \(Int(gb.rounded())) GB per hour for each display with moving content; a still "
+                    + "screen uses much less. All displays write about \(Int(mbs.rounded())) MB/s"
+                    + (mbs > 100 ? ", more than a 1 Gbit network drive can take: record to the internal disk." : ".")
+                    + " The camera file does not change.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            .disabled(rec.isRecording)
         }
         .formStyle(.grouped)
     }

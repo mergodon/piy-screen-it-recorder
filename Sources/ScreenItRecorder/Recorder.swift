@@ -11,7 +11,8 @@ final class Recorder: NSObject, ObservableObject {
 
     static let targetWidth = 2560
     nonisolated static let fps: Int32 = 30
-    static let minFreeBytes: Int64 = 10_000_000_000  // ~1h of two screens
+    /// Refuse to start with less room than this, or than 15 minutes at the chosen quality.
+    static let minFreeBytes: Int64 = 10_000_000_000
     static let stampFormat = {
         let f = DateFormatter()
         f.locale = Locale(identifier: "en_US_POSIX")
@@ -34,6 +35,15 @@ final class Recorder: NSObject, ObservableObject {
     @Published var hideWidgets: Bool {
         didSet { UserDefaults.standard.set(hideWidgets, forKey: "hideWidgets") }
     }
+    @Published var quality: Quality {
+        didSet { UserDefaults.standard.set(quality.rawValue, forKey: "recQuality") }
+    }
+    @Published var codec: Codec {
+        didSet { UserDefaults.standard.set(codec.rawValue, forKey: "recCodec") }
+    }
+    @Published var resolution: Resolution {
+        didSet { UserDefaults.standard.set(resolution.rawValue, forKey: "recResolution") }
+    }
 
     static let defaultFolder = FileManager.default.homeDirectoryForCurrentUser
         .appending(path: "Movies/ScreenItRecorder", directoryHint: .isDirectory)
@@ -55,13 +65,20 @@ final class Recorder: NSObject, ObservableObject {
     /// A start or stop is in progress. A camera can take seconds to warm up, and a second ⌃⌥⇧R
     /// meanwhile must not begin a second recording.
     private var busy = false
-    /// How long stop() waits for the "finished" callbacks before it checks the files itself.
+    /// How long stop() waits for the camera's "finished" callback before it checks the file itself.
     static let saveTimeout: Duration = .seconds(10)
     nonisolated static let log = Logger(subsystem: "com.mergodon.ScreenItRecorder", category: "recorder")
-    private var outputs: [SCRecordingOutput] = []  // same order as `streams`
-    private var finishedOutputs: Set<ObjectIdentifier> = []
-    private var files: [URL] = []  // every file of this session, to check when a callback never comes
+    private var writers: [ScreenWriter] = []  // same order as `streams`
+    /// Streams that already stopped (Stop in the macOS menu bar, an error). Stopping one again
+    /// took ~35 s to return (2026-10-11), so stop() skips them.
+    private var stoppedStreams: Set<ObjectIdentifier> = []
+    private var cameraFile: URL?
     private var watchdog: Task<Void, Never>?
+
+    /// Every display together, at the measured rate of the chosen settings.
+    var bytesPerSecond: Double {
+        MeasuredRate.mbps(codec, resolution, quality) * 1_000_000 / 8 * Double(max(1, NSScreen.screens.count))
+    }
 
     private var isDefaultFolder: Bool { folder.standardizedFileURL == Self.defaultFolder.standardizedFileURL }
 
@@ -78,6 +95,9 @@ final class Recorder: NSObject, ObservableObject {
         cameraID = d.string(forKey: "cameraID")  // off unless chosen
         folder = d.string(forKey: "saveFolder").map { URL(filePath: $0, directoryHint: .isDirectory) } ?? Self.defaultFolder
         cameraFPS = d.object(forKey: "cameraFPS") as? Int ?? Int(Self.fps)  // match the screens
+        quality = d.string(forKey: "recQuality").flatMap(Quality.init) ?? .high
+        codec = d.string(forKey: "recCodec").flatMap(Codec.init) ?? .hevc
+        resolution = d.string(forKey: "recResolution").flatMap(Resolution.init) ?? .p1440
         super.init()
     }
 
@@ -110,8 +130,10 @@ final class Recorder: NSObject, ObservableObject {
                let n = fs[.systemFreeSize] as? NSNumber {
                 free = n.int64Value
             }
-            guard free >= Self.minFreeBytes else {
-                throw RecError("Only \(free / 1_000_000_000) GB free — need \(Self.minFreeBytes / 1_000_000_000) GB")
+            let need = max(Self.minFreeBytes, Int64(bytesPerSecond * 15 * 60))
+            guard free >= need else {
+                throw RecError("Only \(free / 1_000_000_000) GB free. The chosen quality needs at least "
+                    + "\(need / 1_000_000_000) GB (15 minutes). Free some space, or lower the quality in Settings.")
             }
 
             let stamp = Self.stampFormat.string(from: .now)
@@ -143,19 +165,15 @@ final class Recorder: NSObject, ObservableObject {
             awake = ProcessInfo.processInfo.beginActivity(
                 options: [.idleDisplaySleepDisabled, .userInitiated], reason: "Recording screens")
 
-            for (i, display) in content.displays.enumerated() {
-                let url = dir.appending(path: "screen\(i).mov")
-                files.append(url)
-                let stream = try makeStream(display: display, url: url)
-                streams.append(stream)
-                unfinished += 1
-            }
             try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+            for (i, display) in content.displays.enumerated() {
+                try makeStream(display: display, url: dir.appending(path: "screen\(i).mov"))
+            }
             if let camera {
                 status = "Starting camera…"
                 unfinished += 1
                 let url = dir.appending(path: "camera.mov")
-                files.append(url)
+                cameraFile = url
                 await camera.start(to: url) { error in
                     Task { @MainActor in
                         if let error { self.fail(error) }
@@ -186,22 +204,19 @@ final class Recorder: NSObject, ObservableObject {
         defer { busy = false }
         status = "Saving…"
         camera?.stop()
-        for (stream, output) in zip(streams, outputs) {
-            if finishedOutputs.contains(ObjectIdentifier(output)) {
-                // Already stopped from the macOS menu bar: stopping it again took ~35 s to return
-                // (2026-10-11), so do not wait for it.
-                Task { try? await stream.stopCapture() }
-            } else {
-                try? await stream.stopCapture()
-            }
+        for stream in streams where !stoppedStreams.contains(ObjectIdentifier(stream)) {
+            try? await stream.stopCapture()
+        }
+        for writer in writers {
+            do { try await writer.finish() } catch { fail(error) }
         }
         if unfinished > 0 {
-            // Never wait forever for a "finished" callback — that blocks the next recording and
-            // Quit — and judge the files themselves, not the missing callback.
+            // Never wait forever for the camera's "finished" callback — that blocks the next
+            // recording and Quit — and judge the file itself, not the missing callback.
             let timeout = Task {
                 try? await Task.sleep(for: Self.saveTimeout)
                 guard !Task.isCancelled, unfinished > 0 else { return }
-                let bad = await Self.unreadable(files)
+                let bad = await Self.unreadable(cameraFile.map { [$0] } ?? [])
                 Self.log.notice("no finish callback for \(self.unfinished) file(s); unreadable: \(bad.count)")
                 if !bad.isEmpty {
                     fail(RecError("\(bad.joined(separator: ", ")) did not finish saving and can be incomplete."))
@@ -221,43 +236,46 @@ final class Recorder: NSObject, ObservableObject {
         NSWorkspace.shared.open(folder)
     }
 
-    private func makeStream(display: SCDisplay, url: URL) throws -> SCStream {
+    private func makeStream(display: SCDisplay, url: URL) throws {
+        let filter = SCContentFilter(display: display, excludingWindows: [])
         let cfg = SCStreamConfiguration()
-        let width = min(Self.targetWidth, display.width * 2)
+        // Native = every physical pixel (5120×2880 on a Studio Display); 1440p = 2560 wide.
+        let native = Int((Double(display.width) * Double(filter.pointPixelScale)).rounded())
+        let width = resolution == .native ? native : min(Self.targetWidth, native)
         cfg.width = width & ~1
         cfg.height = (width * display.height / display.width) & ~1
         cfg.minimumFrameInterval = CMTime(value: 1, timescale: Self.fps)
         cfg.showsCursor = true
         // Capture in sRGB, not the display's P3, so pixels match the file's BT.709 tag
         // (and the green screen lands as exact #00FF00).
+        cfg.pixelFormat = kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange
         cfg.colorSpaceName = CGColorSpace.sRGB
         cfg.colorMatrix = CGDisplayStream.yCbCrMatrix_ITU_R_709_2
         cfg.queueDepth = 8
         cfg.streamName = "Screen It Recorder"
+        let mic = micID.flatMap { AVCaptureDevice(uniqueID: $0) }
         if let micID {
             cfg.captureMicrophone = true
             cfg.microphoneCaptureDeviceID = micID
         }
 
-        let out = SCRecordingOutputConfiguration()
-        out.outputURL = url
-        out.outputFileType = .mov
-        out.videoCodecType = .hevc
-
-        let filter = SCContentFilter(display: display, excludingWindows: [])
+        let writer = try ScreenWriter(url: url, width: cfg.width, height: cfg.height, codec: codec,
+                                      quality: quality, mic: mic) { error in
+            Task { @MainActor in self.fail(error) }
+        }
         let stream = SCStream(filter: filter, configuration: cfg, delegate: self)
-        let output = SCRecordingOutput(configuration: out, delegate: self)
-        try stream.addRecordingOutput(output)
-        outputs.append(output)
-        return stream
+        try stream.addStreamOutput(writer, type: .screen, sampleHandlerQueue: writer.queue)
+        if mic != nil { try stream.addStreamOutput(writer, type: .microphone, sampleHandlerQueue: writer.queue) }
+        streams.append(stream)
+        writers.append(writer)
     }
 
     private func teardown() async {
         watchdog?.cancel()
         watchdog = nil
-        outputs.removeAll()
-        finishedOutputs.removeAll()
-        files.removeAll()
+        writers.removeAll()
+        stoppedStreams.removeAll()
+        cameraFile = nil
         streams.removeAll()
         started.removeAll()
         camera = nil
@@ -269,21 +287,16 @@ final class Recorder: NSObject, ObservableObject {
         isRecording = false
     }
 
-    /// Backup for a recording that ends outside the app with no callback at all: when no file
-    /// has grown for 6 s, save and stop. A still screen still grows: the mic track and ~1 fps
-    /// idle frames. (The menu bar's Stop does send "finished" — see recordingOutputDidFinishRecording.)
+    /// Backup for a recording that ends outside the app with no callback: when no stream has
+    /// delivered anything for 6 s, save and stop. A still screen still delivers idle frames, and
+    /// the mic delivers audio all the time.
     private func watchForSystemStop() {
         watchdog = Task { [weak self] in
-            var last: [CMTime] = []
-            var still = 0
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(2))
                 guard let self, self.isRecording, !self.busy else { return }
-                let now = self.outputs.map(\.recordedDuration)
-                still = now == last ? still + 1 : 0
-                last = now
-                if still >= 3 {
-                    Self.log.notice("files stopped growing: stopped outside the app")
+                if !self.writers.isEmpty, self.writers.allSatisfy({ $0.silence > .seconds(6) }) {
+                    Self.log.notice("no samples for 6 s: stopped outside the app")
                     await self.stop()
                     return
                 }
@@ -319,42 +332,17 @@ final class Recorder: NSObject, ObservableObject {
     }
 }
 
-extension Recorder: SCStreamDelegate, SCRecordingOutputDelegate {
+extension Recorder: SCStreamDelegate {
+    /// Also called when Stop is chosen in the macOS screen-recording menu in the menu bar (one
+    /// Stop per display): stop the whole recording, as a normal stop, not a failure.
     nonisolated func stream(_ stream: SCStream, didStopWithError error: Error) {
         let code = (error as NSError).code
         Self.log.notice("stream stopped, code \(code): \(error.localizedDescription, privacy: .public)")
+        let id = ObjectIdentifier(stream)
         Task { @MainActor in
-            // Stop in the macOS menu bar is a normal stop, not a failure.
+            self.stoppedStreams.insert(id)
             if code != SCStreamError.Code.userStopped.rawValue { self.fail(error) }
             await self.stop()
-        }
-    }
-
-    nonisolated func streamDidBecomeInactive(_ stream: SCStream) {
-        Self.log.notice("stream became inactive")
-    }
-
-    /// Also called when Stop is chosen in the macOS screen-recording menu in the menu bar. That
-    /// menu has one Stop per display and calls no SCStreamDelegate method (macOS 27.0.1), so a
-    /// file that finishes while still recording means: the user stopped it there — stop it all.
-    nonisolated func recordingOutputDidFinishRecording(_ out: SCRecordingOutput) {
-        Self.log.notice("file finished")
-        let id = ObjectIdentifier(out)
-        Task { @MainActor in
-            self.finishedOutputs.insert(id)
-            self.finishedOne()
-            if self.isRecording, !self.busy {
-                Self.log.notice("file finished during the recording: stopped outside the app")
-                await self.stop()
-            }
-        }
-    }
-
-    nonisolated func recordingOutput(_ out: SCRecordingOutput, didFailWithError error: Error) {
-        Self.log.notice("file failed: \(error.localizedDescription, privacy: .public)")
-        Task { @MainActor in
-            self.fail(error)
-            self.finishedOne()
         }
     }
 }

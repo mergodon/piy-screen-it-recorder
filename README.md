@@ -5,7 +5,12 @@
 A small macOS menu bar app that records **every display to its own file**, with your
 microphone in each file. Drop the files into Final Cut Pro and sync them on the audio.
 
-- One `.mov` per display: HEVC (`hvc1`), about 2560×1440, 30 fps, plus AAC mic audio.
+- One `.mov` per display, 30 fps, plus AAC mic audio. Choose in **Settings → Recording**:
+  - **Quality** Standard / High (default) / Maximum.
+  - **Resolution** 1440p (default) or Native (5120×2880 on a 5K display).
+  - **Codec** HEVC (default, small files) or ProRes 422 LT / 422 / HQ (smooth editing in FCP, very large files).
+  Settings shows the size per hour. Measured with moving content: High HEVC 1440p is about 6 GB per
+  hour for each display; Maximum ProRes Native is about 210 GB.
 - The same mic track is in every file, so **Synchronize Clips** in FCP lines them up. A clap at the start is a good backup.
 - **Camera (optional):** choose a camera in the menu (default **None**). It records 1080p HEVC at 30 fps (matches the screens); **Camera Frame Rate** offers every rate the camera supports, e.g. 50/60 for slow motion
   with the same mic track to `camera.mov`. The camera starts first, so it never misses the clap.
