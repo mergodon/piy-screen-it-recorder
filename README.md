@@ -17,6 +17,13 @@ microphone in each file. Drop the files into Final Cut Pro and sync them on the 
   By default it also dims the displays to 40% while green is on (configurable), so the green
   does not flood the room. Only the backlight changes, so the file keeps the exact colour.
   (Dimming uses Apple's private DisplayServices framework; it works on Apple displays.)
+- **Playback:** press **⌃⌥P** to play the latest recording full screen, each screen file on the
+  display it came from, all displays frame-locked. Perform a demo again live in front of the
+  camera instead of keying it in later. Menu → **Playback…** chooses a recording folder or any
+  video per display (for example a recut export). Beeps tell you where you are without a look:
+  a countdown (Off / 3 / 5 / 10 s), a tick (Off or every 5–60 s), the last 5 seconds and the end.
+  At the end it holds the last frame or restarts. ⌃⌥P or Space pauses, ⌃⌥⇧P restarts, Esc stops.
+  The video's own sound is off by default. Your mic hears the beeps, so use headphones when it must not.
 - **Settings window** (menu → Settings…): all options, the shortcuts, and a live check of the
   Screen Recording, Camera and Microphone permissions with buttons to fix them.
 - Captures in sRGB, so the colours in the file match the screen and the file's BT.709 tag.
