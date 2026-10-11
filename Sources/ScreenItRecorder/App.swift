@@ -1,14 +1,16 @@
 import AppKit
+import Carbon.HIToolbox
 import SwiftUI
 
 @main
 struct ScreenItRecorderApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @StateObject private var rec = Recorder.shared
+    @StateObject private var green = GreenScreen.shared
 
     var body: some Scene {
         MenuBarExtra {
-            MenuView().environmentObject(rec)
+            MenuView().environmentObject(rec).environmentObject(green)
         } label: {
             Image(nsImage: Logo.menuBar(recording: rec.isRecording))
         }
@@ -17,15 +19,21 @@ struct ScreenItRecorderApp: App {
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ note: Notification) {
-        // `--test <seconds>`: record, stop, quit — a headless smoke test.
+        HotKey.register(keyCode: kVK_ANSI_G, modifiers: controlKey | optionKey) {
+            Task { @MainActor in GreenScreen.shared.toggle() }
+        }
+
+        // `--test <seconds> [--green]`: record (optionally over green), stop, quit — a headless smoke test.
         let args = CommandLine.arguments
         if let i = args.firstIndex(of: "--test"), i + 1 < args.count, let secs = Double(args[i + 1]) {
             Task { @MainActor in
                 let rec = Recorder.shared
+                if args.contains("--green") { GreenScreen.shared.show() }
                 await rec.start()
                 print(rec.status)
                 try? await Task.sleep(for: .seconds(secs))
                 await rec.stop()
+                GreenScreen.shared.hide()
                 print(rec.status)
                 exit(rec.lastError == nil ? 0 : 1)
             }
@@ -45,6 +53,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
 struct MenuView: View {
     @EnvironmentObject var rec: Recorder
+    @EnvironmentObject var green: GreenScreen
 
     var body: some View {
         Text(rec.status)
@@ -60,6 +69,12 @@ struct MenuView: View {
         .disabled(rec.isRecording)
         Toggle("Hide Desktop Widgets While Recording", isOn: $rec.hideWidgets)
             .disabled(rec.isRecording)
+        Divider()
+        Button(green.isOn ? "Green Screen Off (⌃⌥G / Esc)" : "Green Screen On (⌃⌥G)") { green.toggle() }
+        Picker("Green", selection: $green.shade) {
+            ForEach(GreenScreen.Shade.allCases) { Text($0.label).tag($0) }
+        }
+        Divider()
         Button("Open Recordings Folder") { rec.openFolder() }
         Divider()
         Button("Quit ScreenItRecorder") { NSApp.terminate(nil) }

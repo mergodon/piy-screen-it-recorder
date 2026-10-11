@@ -7,6 +7,10 @@ microphone in each file. Drop the files into Final Cut Pro and sync them on the 
 
 - One `.mov` per display: HEVC (`hvc1`), about 2560×1440, 30 fps, plus AAC mic audio.
 - The same mic track is in every file, so **Synchronize Clips** in FCP lines them up. A clap at the start is a good backup.
+- **Green screen:** press **⌃⌥G** (anywhere) to cover every display with solid green, so you can
+  key other footage onto the screens later. Press ⌃⌥G or Esc to remove it. Choose
+  `#00FF00` (default) or chroma `#00B140` in the menu. The recording stores the exact value.
+- Captures in sRGB, so the colours in the file match the screen and the file's BT.709 tag.
 - Hides your desktop widgets while it records and puts them back after.
 - Keeps the display awake while it records.
 - Refuses to start with less than 10 GB free.
@@ -36,7 +40,7 @@ To sign with your Developer ID:
 SIGN_ID="Developer ID Application: <your name> (<team id>)" ./build.sh
 ```
 
-Smoke test without the UI (records 5 s, then quits):
+Smoke test without the UI (records 5 s, then quits; add `--green` to record over the green screen):
 
 ```sh
 build/ScreenItRecorder.app/Contents/MacOS/ScreenItRecorder --test 5

@@ -113,6 +113,10 @@ final class Recorder: NSObject, ObservableObject {
         cfg.height = (width * display.height / display.width) & ~1
         cfg.minimumFrameInterval = CMTime(value: 1, timescale: Self.fps)
         cfg.showsCursor = true
+        // Capture in sRGB, not the display's P3, so pixels match the file's BT.709 tag
+        // (and the green screen lands as exact #00FF00).
+        cfg.colorSpaceName = CGColorSpace.sRGB
+        cfg.colorMatrix = CGDisplayStream.yCbCrMatrix_ITU_R_709_2
         cfg.queueDepth = 8
         if let micID {
             cfg.captureMicrophone = true
