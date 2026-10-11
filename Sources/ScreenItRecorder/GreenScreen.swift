@@ -2,7 +2,8 @@ import AppKit
 import Carbon.HIToolbox
 
 /// Covers every display with solid chroma green, for keying screen content in later.
-/// Toggle with ⌃⌥G (global) or the menu; Esc also turns it off.
+/// Toggle with ⌃⌥G (global) or the menu; Esc also turns it off. Optionally dims the
+/// backlight meanwhile — full-brightness green floods the room; the file keeps the exact colour.
 @MainActor
 final class GreenScreen: ObservableObject {
     static let shared = GreenScreen()
@@ -26,10 +27,22 @@ final class GreenScreen: ObservableObject {
         }
     }
 
+    @Published var dim: Bool {
+        didSet { UserDefaults.standard.set(dim, forKey: "greenDim"); applyBacklight() }
+    }
+    /// Backlight level while green is on, 0.1–1.
+    @Published var dimLevel: Double {
+        didSet { UserDefaults.standard.set(dimLevel, forKey: "greenDimLevel"); applyBacklight() }
+    }
+
     private var windows: [NSWindow] = []
+    private var savedBacklight: [UInt32: Float] = [:]
 
     init() {
-        shade = UserDefaults.standard.string(forKey: "greenShade").flatMap(Shade.init) ?? .pure
+        let d = UserDefaults.standard
+        shade = d.string(forKey: "greenShade").flatMap(Shade.init) ?? .pure
+        dim = d.object(forKey: "greenDim") as? Bool ?? true
+        dimLevel = d.object(forKey: "greenDimLevel") as? Double ?? 0.4
     }
 
     func toggle() { isOn ? hide() : show() }
@@ -51,6 +64,7 @@ final class GreenScreen: ObservableObject {
         windows.first?.makeKey()
         NSCursor.hide()
         isOn = true
+        applyBacklight()
     }
 
     func hide() {
@@ -59,6 +73,21 @@ final class GreenScreen: ObservableObject {
         windows.removeAll()
         NSCursor.unhide()
         isOn = false
+        applyBacklight()
+    }
+
+    /// Dim each display (never brighten one already darker) while on; restore when off.
+    private func applyBacklight() {
+        guard isOn, dim else {
+            savedBacklight.forEach { Backlight.set($0.key, $0.value) }
+            savedBacklight.removeAll()
+            return
+        }
+        for screen in NSScreen.screens {
+            guard let id = Backlight.displayID(screen) else { continue }
+            if savedBacklight[id] == nil { savedBacklight[id] = Backlight.get(id) }
+            if let original = savedBacklight[id] { Backlight.set(id, min(original, Float(dimLevel))) }
+        }
     }
 }
 

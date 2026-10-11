@@ -30,6 +30,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
 
+        if CommandLine.arguments.contains("--settings") { MainActor.assumeIsolated { SettingsWindow.show() } }
+
         // `--test <seconds> [--green]`: record (optionally over green), stop, quit — a headless smoke test.
         let args = CommandLine.arguments
         if let i = args.firstIndex(of: "--test"), i + 1 < args.count, let secs = Double(args[i + 1]) {
@@ -56,6 +58,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         return .terminateLater
     }
+
+    // Never leave the displays dimmed by the green screen.
+    func applicationWillTerminate(_ note: Notification) {
+        MainActor.assumeIsolated { GreenScreen.shared.hide() }
+    }
 }
 
 struct MenuView: View {
@@ -64,38 +71,16 @@ struct MenuView: View {
 
     var body: some View {
         Text(rec.status)
+        if !Permission.allGranted {
+            Button("⚠︎ Permissions Needed…") { SettingsWindow.show() }
+        }
         Button(rec.isRecording ? "Stop Recording (⌃⌥⇧R)" : "Start Recording (⌃⌥⇧R)") {
             Task { rec.isRecording ? await rec.stop() : await rec.start() }
         }
-        Divider()
-        Picker("Microphone", selection: $rec.micID) {
-            Text("None").tag(String?.none)
-            ForEach(rec.mics, id: \.uniqueID) { Text($0.localizedName).tag(Optional($0.uniqueID)) }
-        }
-        .disabled(rec.isRecording)
-        Picker("Camera", selection: $rec.cameraID) {
-            let cams = CameraRecorder.devices
-            let labels = CameraRecorder.labels(for: cams)
-            Text("None").tag(String?.none)
-            ForEach(cams, id: \.uniqueID) { Text(labels[$0.uniqueID]!).tag(Optional($0.uniqueID)) }
-        }
-        .disabled(rec.isRecording)
-        if let cameraID = rec.cameraID {
-            Picker("Camera Frame Rate", selection: $rec.cameraFPS) {
-                ForEach(CameraRecorder.rates(cameraID: cameraID), id: \.self) { fps in
-                    Text(fps == Int(Recorder.fps) ? "\(fps) fps (matches screens)" : "\(fps) fps").tag(fps)
-                }
-            }
-            .disabled(rec.isRecording)
-        }
-        Toggle("Hide Desktop Widgets While Recording", isOn: $rec.hideWidgets)
-            .disabled(rec.isRecording)
-        Divider()
         Button(green.isOn ? "Green Screen Off (⌃⌥G / Esc)" : "Green Screen On (⌃⌥G)") { green.toggle() }
-        Picker("Green", selection: $green.shade) {
-            ForEach(GreenScreen.Shade.allCases) { Text($0.label).tag($0) }
-        }
         Divider()
+        Button("Settings…") { SettingsWindow.show() }
+            .keyboardShortcut(",")
         Button("Open Recordings Folder") { rec.openFolder() }
         Divider()
         Button("Quit ScreenItRecorder") { NSApp.terminate(nil) }

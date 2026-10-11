@@ -1,10 +1,14 @@
 #!/usr/bin/env zsh
-# Build build/ScreenItRecorder.app. Signs ad-hoc unless SIGN_ID names a codesigning identity
-# (e.g. SIGN_ID="Developer ID Application: …"), which also enables the hardened runtime.
+# Build build/ScreenItRecorder.app; `--install` also replaces /Applications/ScreenItRecorder.app
+# and relaunches it.
+# Signing, in order: SIGN_ID (e.g. "Developer ID Application: …", adds the hardened runtime),
+# else the local identity from tools/make-local-signing-cert.sh, else ad hoc. Only a stable
+# identity keeps macOS's Screen Recording / Camera / Mic permission across rebuilds.
 set -euo pipefail
 cd "${0:A:h}"
 
 APP=build/ScreenItRecorder.app
+LOCAL_ID="ScreenItRecorder Local Signing"
 swift build -c release
 
 rm -rf "$APP" build/AppIcon.iconset
@@ -22,7 +26,20 @@ iconutil -c icns build/AppIcon.iconset -o "$APP/Contents/Resources/AppIcon.icns"
 if [[ -n "${SIGN_ID:-}" ]]; then
   codesign --force --options runtime --entitlements Resources/ScreenItRecorder.entitlements \
     --sign "$SIGN_ID" "$APP"
+elif security find-certificate -c "$LOCAL_ID" >/dev/null 2>&1; then
+  codesign --force --sign "$LOCAL_ID" "$APP"
 else
+  echo "Signing ad hoc — permissions reset every build. Run tools/make-local-signing-cert.sh once." >&2
   codesign --force --sign - "$APP"
 fi
-codesign --verify --strict "$APP" && echo "Built $APP"
+codesign -dr - "$APP" 2>&1 | grep designated
+echo "Built $APP"
+
+if [[ "${1:-}" == "--install" ]]; then
+  osascript -e 'quit app "ScreenItRecorder"' 2>/dev/null || true
+  for _ in {1..20}; do pgrep -x ScreenItRecorder >/dev/null || break; sleep 0.5; done
+  rm -rf /Applications/ScreenItRecorder.app
+  cp -R "$APP" /Applications/
+  open /Applications/ScreenItRecorder.app
+  echo "Installed /Applications/ScreenItRecorder.app"
+fi

@@ -11,7 +11,12 @@ microphone in each file. Drop the files into Final Cut Pro and sync them on the 
   with the same mic track to `camera.mov`. The camera starts first, so it never misses the clap.
 - **Green screen:** press **⌃⌥G** (anywhere) to cover every display with solid green, so you can
   key other footage onto the screens later. Press ⌃⌥G or Esc to remove it. Choose
-  `#00FF00` (default) or chroma `#00B140` in the menu. The recording stores the exact value.
+  `#00FF00` (default) or chroma `#00B140` in Settings. The recording stores the exact value.
+  By default it also dims the displays to 40% while green is on (configurable), so the green
+  does not flood the room. Only the backlight changes, so the file keeps the exact colour.
+  (Dimming uses Apple's private DisplayServices framework; it works on Apple displays.)
+- **Settings window** (menu → Settings…): all options, the shortcuts, and a live check of the
+  Screen Recording, Camera and Microphone permissions with buttons to fix them.
 - Captures in sRGB, so the colours in the file match the screen and the file's BT.709 tag.
 - Hides your desktop widgets while it records and puts them back after.
 - Keeps the display awake while it records.
@@ -28,16 +33,17 @@ Recordings go to `~/Movies/ScreenItRecorder/<date_time>/screen0.mov`, `screen1.m
 ## Build and run
 
 ```sh
-./build.sh
-open build/ScreenItRecorder.app
+tools/make-local-signing-cert.sh   # once per Mac: keeps permissions across rebuilds
+./build.sh --install               # builds, replaces /Applications/ScreenItRecorder.app, relaunches
 ```
 
 Click **S|R** in the menu bar, choose your microphone, then click **Start Recording**, or press **⌃⌥⇧R** anywhere to start and stop.
 (⌃⌥R is taken by Final Cut Pro's Custom Speed.)
 The first time, macOS asks for Screen Recording, Microphone and (if you use one) Camera permission.
 
-`build.sh` signs the app ad hoc. macOS then asks for permission again after each rebuild.
-To sign with your Developer ID:
+`build.sh` signs with the local identity from `tools/make-local-signing-cert.sh` when it
+exists. Without it, the build is signed ad hoc, and macOS forgets the permissions after every
+rebuild. To sign a build that you share with other people, use your Developer ID:
 
 ```sh
 SIGN_ID="Developer ID Application: <your name> (<team id>)" ./build.sh
