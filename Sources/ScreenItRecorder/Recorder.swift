@@ -27,6 +27,9 @@ final class Recorder: NSObject, ObservableObject {
     @Published var cameraID: String? {
         didSet { UserDefaults.standard.set(cameraID, forKey: "cameraID") }
     }
+    @Published var cameraFPS: Int {
+        didSet { UserDefaults.standard.set(cameraFPS, forKey: "cameraFPS") }
+    }
     @Published var hideWidgets: Bool {
         didSet { UserDefaults.standard.set(hideWidgets, forKey: "hideWidgets") }
     }
@@ -53,6 +56,7 @@ final class Recorder: NSObject, ObservableObject {
         hideWidgets = d.object(forKey: "hideWidgets") as? Bool ?? true
         micID = d.string(forKey: "micID") ?? AVCaptureDevice.default(for: .audio)?.uniqueID
         cameraID = d.string(forKey: "cameraID")  // off unless chosen
+        cameraFPS = d.object(forKey: "cameraFPS") as? Int ?? Int(Self.fps)  // match the screens
         super.init()
     }
 
@@ -76,7 +80,7 @@ final class Recorder: NSObject, ObservableObject {
             if let cameraID {
                 guard await AVCaptureDevice.requestAccess(for: .video) else { throw RecError("No camera permission") }
                 if micID != nil { _ = await AVCaptureDevice.requestAccess(for: .audio) }
-                camera = try CameraRecorder(cameraID: cameraID, micID: micID)
+                camera = try CameraRecorder(cameraID: cameraID, micID: micID, fps: Int32(cameraFPS))
             }
 
             if hideWidgets {
@@ -107,7 +111,7 @@ final class Recorder: NSObject, ObservableObject {
             }
 
             isRecording = true
-            status = "● Recording \(streams.count) screens\(camera == nil ? "" : " + camera") → \(stamp)"
+            status = "● Recording \(streams.count) screens\(camera == nil ? "" : " + camera @ \(cameraFPS) fps") → \(stamp)"
         } catch {
             camera?.stop()
             for stream in started { try? await stream.stopCapture() }

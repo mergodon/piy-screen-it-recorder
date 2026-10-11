@@ -28,7 +28,17 @@ final class CameraRecorder: NSObject, AVCaptureFileOutputRecordingDelegate, @unc
         })
     }
 
-    init(cameraID: String, micID: String?) throws {
+    /// Whole frame rates the camera offers at 1080p, e.g. [24, 25, 30, 50, 60].
+    static func rates(cameraID: String) -> [Int] {
+        guard let camera = AVCaptureDevice(uniqueID: cameraID) else { return [] }
+        let rates = camera.formats.filter {
+            let d = CMVideoFormatDescriptionGetDimensions($0.formatDescription)
+            return d.width == 1920 && d.height == 1080
+        }.flatMap { $0.videoSupportedFrameRateRanges.map { Int($0.maxFrameRate.rounded()) } }
+        return Array(Set(rates)).sorted()
+    }
+
+    init(cameraID: String, micID: String?, fps: Int32) throws {
         guard let camera = AVCaptureDevice(uniqueID: cameraID) else { throw RecError("Camera not found") }
         self.camera = camera
         super.init()
@@ -37,7 +47,7 @@ final class CameraRecorder: NSObject, AVCaptureFileOutputRecordingDelegate, @unc
         if let micID, let mic = AVCaptureDevice(uniqueID: micID) { try add(AVCaptureDeviceInput(device: mic)) }
         guard session.canAddOutput(output) else { throw RecError("Cannot record from \(camera.localizedName)") }
         session.addOutput(output)
-        try configure(camera, width: 1920, height: 1080, fps: Recorder.fps)
+        try configure(camera, width: 1920, height: 1080, fps: fps)
         session.commitConfiguration()
         if let video = output.connection(with: .video) {
             output.setOutputSettings([AVVideoCodecKey: AVVideoCodecType.hevc], for: video)

@@ -74,6 +74,14 @@ struct MenuView: View {
             ForEach(cams, id: \.uniqueID) { Text(labels[$0.uniqueID]!).tag(Optional($0.uniqueID)) }
         }
         .disabled(rec.isRecording)
+        if let cameraID = rec.cameraID {
+            Picker("Camera Frame Rate", selection: $rec.cameraFPS) {
+                ForEach(CameraRecorder.rates(cameraID: cameraID), id: \.self) { fps in
+                    Text(fps == Int(Recorder.fps) ? "\(fps) fps (matches screens)" : "\(fps) fps").tag(fps)
+                }
+            }
+            .disabled(rec.isRecording)
+        }
         Toggle("Hide Desktop Widgets While Recording", isOn: $rec.hideWidgets)
             .disabled(rec.isRecording)
         Divider()
