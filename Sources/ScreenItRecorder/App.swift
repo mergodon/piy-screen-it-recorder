@@ -81,6 +81,7 @@ struct MenuView: View {
             green.toggle()
         }
         Divider()
+        Button("About Screen It Recorder") { About.showPanel() }
         Button("Settings…") { SettingsWindow.show() }
             .keyboardShortcut(",")
         Button("Open Recordings Folder") { rec.openFolder() }

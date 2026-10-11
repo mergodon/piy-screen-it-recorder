@@ -34,8 +34,15 @@ final class Recorder: NSObject, ObservableObject {
         didSet { UserDefaults.standard.set(hideWidgets, forKey: "hideWidgets") }
     }
 
-    let folder = FileManager.default.homeDirectoryForCurrentUser
+    static let defaultFolder = FileManager.default.homeDirectoryForCurrentUser
         .appending(path: "Movies/ScreenItRecorder", directoryHint: .isDirectory)
+    /// Where each session's folder goes. Chosen in Settings; nil in the prefs = the default.
+    @Published var folder: URL {
+        didSet {
+            let isDefault = folder.standardizedFileURL == Self.defaultFolder.standardizedFileURL
+            UserDefaults.standard.set(isDefault ? nil : folder.path(percentEncoded: false), forKey: "saveFolder")
+        }
+    }
 
     private var streams: [SCStream] = []
     private var started: [SCStream] = []
@@ -56,6 +63,7 @@ final class Recorder: NSObject, ObservableObject {
         hideWidgets = d.object(forKey: "hideWidgets") as? Bool ?? true
         micID = d.string(forKey: "micID") ?? AVCaptureDevice.default(for: .audio)?.uniqueID
         cameraID = d.string(forKey: "cameraID")  // off unless chosen
+        folder = d.string(forKey: "saveFolder").map { URL(filePath: $0, directoryHint: .isDirectory) } ?? Self.defaultFolder
         cameraFPS = d.object(forKey: "cameraFPS") as? Int ?? Int(Self.fps)  // match the screens
         super.init()
     }
@@ -71,8 +79,14 @@ final class Recorder: NSObject, ObservableObject {
                     + "Screen & System Audio Recording, then quit and reopen it")
             }
             try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-            let free = try folder.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey])
-                .volumeAvailableCapacityForImportantUsage ?? 0
+            // On an SMB share both URL capacity keys come back 0/nil (measured on the fleet share);
+            // statfs (via attributesOfFileSystem) reports the real figure there.
+            let space = try folder.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey])
+            var free = space.volumeAvailableCapacityForImportantUsage ?? 0
+            if free == 0, let fs = try? FileManager.default.attributesOfFileSystem(forPath: folder.path(percentEncoded: false)),
+               let n = fs[.systemFreeSize] as? NSNumber {
+                free = n.int64Value
+            }
             guard free >= Self.minFreeBytes else {
                 throw RecError("Only \(free / 1_000_000_000) GB free — need \(Self.minFreeBytes / 1_000_000_000) GB")
             }

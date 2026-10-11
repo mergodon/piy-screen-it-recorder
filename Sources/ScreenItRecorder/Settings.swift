@@ -48,9 +48,16 @@ struct SettingsView: View {
                 }
                 Toggle("Hide desktop widgets while recording", isOn: $rec.hideWidgets)
                 LabeledContent("Saves to") {
-                    HStack {
+                    VStack(alignment: .trailing) {
                         Text(rec.folder.path(percentEncoded: false)).textSelection(.enabled)
-                        Button("Open") { rec.openFolder() }
+                            .multilineTextAlignment(.trailing)
+                        HStack {
+                            if rec.folder.standardizedFileURL != Recorder.defaultFolder.standardizedFileURL {
+                                Button("Use Default") { rec.folder = Recorder.defaultFolder }
+                            }
+                            Button("Change…") { chooseFolder() }
+                            Button("Open") { rec.openFolder() }
+                        }
                     }
                 }
             }
@@ -83,10 +90,75 @@ struct SettingsView: View {
             }
 
             PermissionsSection()
+
+            AboutSection()
         }
         .formStyle(.grouped)
         .frame(width: 520)
         .fixedSize(horizontal: false, vertical: true)
+    }
+}
+
+extension SettingsView {
+    private func chooseFolder() {
+        let panel = NSOpenPanel()
+        panel.title = "Choose where Screen It Recorder saves recordings"
+        panel.prompt = "Choose"
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.canCreateDirectories = true
+        panel.directoryURL = rec.folder
+        if panel.runModal() == .OK, let url = panel.url { rec.folder = url }
+    }
+}
+
+enum About {
+    static let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "dev"
+    static let repo = URL(string: "https://github.com/promptityourself/piy-screen-it-recorder")!
+    // The project page does not exist yet (promptityourself-web#116); point at it once live.
+    static let site = URL(string: "https://promptityourself.com/projects/")!
+    static let blurb = "Records every screen, and a camera if you want one, to separate files "
+        + "with the same mic track, so Final Cut Pro can sync them."
+    static let credit = "A Prompt It Yourself project. MIT licence. © 2026 Mergodon Limited."
+
+    /// The standard About panel, with the blurb and links as credits.
+    @MainActor static func showPanel() {
+        let credits = NSMutableAttributedString(string: blurb + "\n\n", attributes: [
+            .font: NSFont.systemFont(ofSize: 11), .foregroundColor: NSColor.labelColor,
+        ])
+        for (title, url) in [("Prompt It Yourself", site), ("Source on GitHub", repo)] {
+            credits.append(NSAttributedString(string: title, attributes: [.link: url, .font: NSFont.systemFont(ofSize: 11)]))
+            credits.append(NSAttributedString(string: "   "))
+        }
+        credits.append(NSAttributedString(string: "\n\n" + credit, attributes: [
+            .font: NSFont.systemFont(ofSize: 10), .foregroundColor: NSColor.secondaryLabelColor,
+        ]))
+        let style = NSMutableParagraphStyle()
+        style.alignment = .center
+        credits.addAttribute(.paragraphStyle, value: style, range: NSRange(location: 0, length: credits.length))
+        NSApp.activate()
+        NSApp.orderFrontStandardAboutPanel(options: [.credits: credits])
+    }
+}
+
+private struct AboutSection: View {
+    var body: some View {
+        Section("About") {
+            HStack(alignment: .top, spacing: 14) {
+                Image(nsImage: NSApp.applicationIconImage).resizable().frame(width: 56, height: 56)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Screen It Recorder").font(.headline)
+                    Text("Version \(About.version)").foregroundStyle(.secondary)
+                    Text(About.blurb).fixedSize(horizontal: false, vertical: true)
+                    HStack(spacing: 16) {
+                        Link("Prompt It Yourself", destination: About.site)
+                        Link("Source on GitHub", destination: About.repo)
+                    }
+                    Text(About.credit).font(.caption).foregroundStyle(.secondary)
+                }
+            }
+            .padding(.vertical, 4)
+        }
     }
 }
 
