@@ -9,7 +9,7 @@ final class Recorder: NSObject, ObservableObject {
     static let shared = Recorder()
 
     static let targetWidth = 2560
-    static let fps: Int32 = 30
+    nonisolated static let fps: Int32 = 30
     static let minFreeBytes: Int64 = 10_000_000_000  // ~1h of two screens
     static let stampFormat = {
         let f = DateFormatter()

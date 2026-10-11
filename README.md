@@ -7,7 +7,7 @@ microphone in each file. Drop the files into Final Cut Pro and sync them on the 
 
 - One `.mov` per display: HEVC (`hvc1`), about 2560×1440, 30 fps, plus AAC mic audio.
 - The same mic track is in every file, so **Synchronize Clips** in FCP lines them up. A clap at the start is a good backup.
-- **Camera (optional):** choose a camera in the menu (default **None**). It records 1080p HEVC
+- **Camera (optional):** choose a camera in the menu (default **None**). It records 1080p30 HEVC (matched to the screens)
   with the same mic track to `camera.mov`. The camera starts first, so it never misses the clap.
 - **Green screen:** press **⌃⌥G** (anywhere) to cover every display with solid green, so you can
   key other footage onto the screens later. Press ⌃⌥G or Esc to remove it. Choose

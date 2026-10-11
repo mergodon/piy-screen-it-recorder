@@ -1,9 +1,12 @@
 import AVFoundation
 
 /// Records one camera (1080p HEVC) plus the mic to its own .mov, alongside the screens.
-final class CameraRecorder: NSObject, AVCaptureFileOutputRecordingDelegate {
+/// `@unchecked Sendable`: touched from the main actor and AVFoundation's queues, never concurrently.
+final class CameraRecorder: NSObject, AVCaptureFileOutputRecordingDelegate, @unchecked Sendable {
     private let session = AVCaptureSession()
     private let output = AVCaptureMovieFileOutput()
+    private let camera: AVCaptureDevice
+    private var locked = false
     private var onStarted: (() -> Void)?
     private var onFinish: ((Error?) -> Void)?
 
@@ -27,13 +30,14 @@ final class CameraRecorder: NSObject, AVCaptureFileOutputRecordingDelegate {
 
     init(cameraID: String, micID: String?) throws {
         guard let camera = AVCaptureDevice(uniqueID: cameraID) else { throw RecError("Camera not found") }
+        self.camera = camera
         super.init()
         session.beginConfiguration()
-        if session.canSetSessionPreset(.hd1920x1080) { session.sessionPreset = .hd1920x1080 }
         try add(AVCaptureDeviceInput(device: camera))
         if let micID, let mic = AVCaptureDevice(uniqueID: micID) { try add(AVCaptureDeviceInput(device: mic)) }
         guard session.canAddOutput(output) else { throw RecError("Cannot record from \(camera.localizedName)") }
         session.addOutput(output)
+        try configure(camera, width: 1920, height: 1080, fps: Recorder.fps)
         session.commitConfiguration()
         if let video = output.connection(with: .video) {
             output.setOutputSettings([AVVideoCodecKey: AVVideoCodecType.hevc], for: video)
@@ -48,6 +52,7 @@ final class CameraRecorder: NSObject, AVCaptureFileOutputRecordingDelegate {
             onStarted = { done.resume() }
             DispatchQueue.global(qos: .userInitiated).async { [self] in
                 session.startRunning()  // blocks
+                unlock()  // held since configure() so the session keeps our format
                 output.startRecording(to: url, recordingDelegate: self)
             }
         }
@@ -70,6 +75,43 @@ final class CameraRecorder: NSObject, AVCaptureFileOutputRecordingDelegate {
         let ok = (error as NSError?)?.userInfo[AVErrorRecordingSuccessfullyFinishedKey] as? Bool ?? (error == nil)
         onFinish?(ok ? nil : error)
     }
+
+    /// Pick the camera format directly (a session preset would reset the frame rate on start)
+    /// and lock it to the screens' frame rate — cameras default to 25 or 24 fps — so the FCP
+    /// timeline gets one camera frame per screen frame. Falls back to the largest format.
+    /// Cameras report inexact rates (Insta360: 1000000/30000030 s), and setting a duration
+    /// outside a range throws — so match within a tolerance and use the range's own duration.
+    private func configure(_ camera: AVCaptureDevice, width: Int32, height: Int32, fps: Int32) throws {
+        func range(_ f: AVCaptureDevice.Format) -> AVFrameRateRange? {
+            f.videoSupportedFrameRateRanges.first {
+                $0.minFrameRate - 0.5 <= Double(fps) && Double(fps) <= $0.maxFrameRate + 0.5
+            }
+        }
+        let formats = camera.formats.filter {
+            let d = CMVideoFormatDescriptionGetDimensions($0.formatDescription)
+            return d.width == width && d.height == height && range($0) != nil
+        }
+        // Prefer 4:2:0 ('420v'), what the HEVC encoder wants.
+        let format = formats.first { CMFormatDescriptionGetMediaSubType($0.formatDescription)
+            == kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange } ?? formats.first
+        try camera.lockForConfiguration()  // released in start(), after startRunning()
+        locked = true
+        if let format, let r = range(format) {
+            let duration = max(r.minFrameDuration, min(r.maxFrameDuration, CMTime(value: 1, timescale: fps)))
+            camera.activeFormat = format
+            camera.activeVideoMinFrameDuration = duration
+            camera.activeVideoMaxFrameDuration = duration
+        } else if session.canSetSessionPreset(.high) {
+            session.sessionPreset = .high
+        }
+    }
+
+    private func unlock() {
+        if locked { camera.unlockForConfiguration() }
+        locked = false
+    }
+
+    deinit { unlock() }  // created but never started (a later start step failed)
 
     private func add(_ input: AVCaptureDeviceInput) throws {
         guard session.canAddInput(input) else { throw RecError("Cannot use \(input.device.localizedName)") }
