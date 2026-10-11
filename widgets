@@ -1,0 +1,13 @@
+#!/usr/bin/env zsh
+# Show/hide desktop widgets (System Settings → Desktop & Dock → Show Widgets: On Desktop).
+# Takes effect live. Usage: widgets off | on | status
+set -euo pipefail
+
+KEY=(com.apple.WindowManager StandardHideWidgets)
+
+case "${1:-status}" in
+  off) defaults write "${KEY[@]}" -bool true ;;
+  on) defaults write "${KEY[@]}" -bool false ;;
+  status) [[ "$(defaults read "${KEY[@]}" 2>/dev/null)" == 1 ]] && echo off || echo on ;;
+  *) echo "usage: widgets off | on | status" >&2; exit 2 ;;
+esac

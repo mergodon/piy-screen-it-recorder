@@ -35,4 +35,11 @@ for i in {1..${#SCREENS[@]}}; do
     "$OUT/screen$n.mov")
 done
 
-exec ffmpeg "${args[@]}"
+# Hide desktop widgets while recording; put them back the way they were on exit.
+wcmd="${0:A:h}/widgets"
+was=$("$wcmd" status)
+trap '"$wcmd" "$was"; echo "Widgets restored ($was)."' EXIT
+trap ':' INT  # a handler (not ignore) so ffmpeg still gets Ctrl-C and finalises
+"$wcmd" off
+
+ffmpeg "${args[@]}" || true
