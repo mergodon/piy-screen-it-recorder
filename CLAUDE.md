@@ -18,3 +18,10 @@
 - Tests share mate's prefs domain (`com.mergodon.ScreenItRecorder`). Read a key before a test
   writes it and restore that value after — never `delete` or reset to a default. Never
   `--install` (it quits the app) while his colour screen is up: check for layer-1000 windows first.
+
+## Cross-repo
+
+Never edit these from here; file issues with `gh issue create -R <owner/repo>`.
+
+- **`mergodon/promptityourself-web`** — the PIY site; owns this project's page
+  (`src/content/projects/`). Page request: issue #116 (2026-10-11).
