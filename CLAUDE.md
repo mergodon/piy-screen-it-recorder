@@ -4,7 +4,7 @@
   renaming costs something: bundle id + executable (TCC grants are keyed on them), the Swift
   target, and `~/Movies/ScreenItRecorder` (existing recordings live there).
 
-- **Public repo (MIT).** Everything committed is published. No fleet hosts, IPs, or personal paths in code or docs.
+- **`promptityourself/piy-screen-it-recorder`** (moved from `mergodon`, 2026-10-11). **Public repo (MIT).** Everything committed is published. No fleet hosts, IPs, or personal paths in code or docs.
 - **Exception to the observer rule (mate, 2026-10-11):** this Mac app is built and tested ON the
   observer Mac — a macOS app cannot build on the Linux dev boxes.
 - Build + install: `./build.sh --install` (SwiftPM + Command Line Tools, no Xcode → no SwiftUI
@@ -25,3 +25,5 @@ Never edit these from here; file issues with `gh issue create -R <owner/repo>`.
 
 - **`mergodon/promptityourself-web`** — the PIY site; owns this project's page
   (`src/content/projects/`). Page request: issue #116 (2026-10-11).
+- **Distribution: App Store later (mate, 2026-10-11)** — no Developer ID / notarised download, and the
+  site page says nothing about dev builds or signing. Blockers are tracked in this repo's issues.
