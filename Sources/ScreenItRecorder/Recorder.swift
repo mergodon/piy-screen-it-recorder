@@ -64,6 +64,12 @@ final class Recorder: NSObject, ObservableObject {
         guard !isRecording else { return }
         lastError = nil
         do {
+            // An ad-hoc build is a new app to macOS after every rebuild, so this is the usual failure.
+            guard CGPreflightScreenCaptureAccess() else {
+                CGRequestScreenCaptureAccess()
+                throw RecError("Allow ScreenItRecorder in System Settings → Privacy & Security → "
+                    + "Screen & System Audio Recording, then quit and reopen it")
+            }
             try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
             let free = try folder.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey])
                 .volumeAvailableCapacityForImportantUsage ?? 0
@@ -73,7 +79,6 @@ final class Recorder: NSObject, ObservableObject {
 
             let stamp = Self.stampFormat.string(from: .now)
             let dir = folder.appending(path: stamp, directoryHint: .isDirectory)
-            try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
 
             let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
             guard !content.displays.isEmpty else { throw RecError("No displays found") }
@@ -95,6 +100,7 @@ final class Recorder: NSObject, ObservableObject {
                 streams.append(stream)
                 unfinished += 1
             }
+            try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
             if let camera {
                 status = "Starting camera…"
                 unfinished += 1

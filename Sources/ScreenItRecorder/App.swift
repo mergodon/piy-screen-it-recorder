@@ -22,6 +22,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         HotKey.register(keyCode: kVK_ANSI_G, modifiers: controlKey | optionKey) {
             Task { @MainActor in GreenScreen.shared.toggle() }
         }
+        // ⌃⌥R is FCP's Retime → Custom Speed; ⌃⌥⇧R is free there.
+        HotKey.register(keyCode: kVK_ANSI_R, modifiers: controlKey | optionKey | shiftKey) {
+            Task { @MainActor in
+                let rec = Recorder.shared
+                rec.isRecording ? await rec.stop() : await rec.start()
+            }
+        }
 
         // `--test <seconds> [--green]`: record (optionally over green), stop, quit — a headless smoke test.
         let args = CommandLine.arguments
@@ -57,10 +64,9 @@ struct MenuView: View {
 
     var body: some View {
         Text(rec.status)
-        Button(rec.isRecording ? "Stop Recording" : "Start Recording") {
+        Button(rec.isRecording ? "Stop Recording (⌃⌥⇧R)" : "Start Recording (⌃⌥⇧R)") {
             Task { rec.isRecording ? await rec.stop() : await rec.start() }
         }
-        .keyboardShortcut("r")
         Divider()
         Picker("Microphone", selection: $rec.micID) {
             Text("None").tag(String?.none)

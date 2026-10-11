@@ -69,19 +69,27 @@ private final class GreenWindow: NSWindow {
     }
 }
 
-/// One system-wide hotkey via Carbon — needs no Accessibility permission.
+/// System-wide hotkeys via Carbon — need no Accessibility permission. A global hotkey takes
+/// the key from every app, so check Final Cut Pro's Default.commandset before adding one.
 enum HotKey {
-    private static var action: (() -> Void)?
-    private static var ref: EventHotKeyRef?
+    private static var actions: [UInt32: () -> Void] = [:]
+    private static var refs: [EventHotKeyRef?] = []
 
     static func register(keyCode: Int, modifiers: Int, _ handler: @escaping () -> Void) {
-        action = handler
-        var spec = EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed))
-        InstallEventHandler(GetApplicationEventTarget(), { _, _, _ in
-            HotKey.action?()
-            return noErr
-        }, 1, &spec, nil, nil)
-        let id = EventHotKeyID(signature: OSType(0x5349_5252), id: 1)  // 'SIRR'
+        if actions.isEmpty {
+            var spec = EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed))
+            InstallEventHandler(GetApplicationEventTarget(), { _, event, _ in
+                var id = EventHotKeyID()
+                GetEventParameter(event, EventParamName(kEventParamDirectObject), EventParamType(typeEventHotKeyID),
+                                  nil, MemoryLayout<EventHotKeyID>.size, nil, &id)
+                HotKey.actions[id.id]?()
+                return noErr
+            }, 1, &spec, nil, nil)
+        }
+        let id = EventHotKeyID(signature: OSType(0x5349_5252), id: UInt32(actions.count + 1))  // 'SIRR'
+        actions[id.id] = handler
+        var ref: EventHotKeyRef?
         RegisterEventHotKey(UInt32(keyCode), UInt32(modifiers), id, GetApplicationEventTarget(), 0, &ref)
+        refs.append(ref)
     }
 }

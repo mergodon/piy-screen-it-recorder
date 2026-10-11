@@ -32,7 +32,8 @@ Recordings go to `~/Movies/ScreenItRecorder/<date_time>/screen0.mov`, `screen1.m
 open build/ScreenItRecorder.app
 ```
 
-Click **S|R** in the menu bar, choose your microphone, then click **Start Recording** (⌘R).
+Click **S|R** in the menu bar, choose your microphone, then click **Start Recording**, or press **⌃⌥⇧R** anywhere to start and stop.
+(⌃⌥R is taken by Final Cut Pro's Custom Speed.)
 The first time, macOS asks for Screen Recording, Microphone and (if you use one) Camera permission.
 
 `build.sh` signs the app ad hoc. macOS then asks for permission again after each rebuild.
