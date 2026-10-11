@@ -9,7 +9,7 @@ MIC="${REC_MIC:-Shure Mic Pass-Thru}"
 FPS="${REC_FPS:-30}"
 SIZE="${REC_SIZE:-2560:1440}"
 BITRATE="${REC_BITRATE:-12M}"
-OUT="${REC_DIR:-$HOME/Movies/stream-rec}/$(date +%Y-%m-%d_%H%M%S)"
+OUT="${REC_DIR:-$HOME/Movies/ScreenItRecorder}/$(date +%Y-%m-%d_%H%M%S)"
 
 if [[ "${1:-}" == "-l" ]]; then
   ffmpeg -hide_banner -f avfoundation -list_devices true -i "" 2>&1 | grep -F 'AVFoundation' || true
