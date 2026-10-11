@@ -39,8 +39,7 @@ final class Recorder: NSObject, ObservableObject {
     /// Where each session's folder goes. Chosen in Settings; nil in the prefs = the default.
     @Published var folder: URL {
         didSet {
-            let isDefault = folder.standardizedFileURL == Self.defaultFolder.standardizedFileURL
-            UserDefaults.standard.set(isDefault ? nil : folder.path(percentEncoded: false), forKey: "saveFolder")
+            UserDefaults.standard.set(isDefaultFolder ? nil : folder.path(percentEncoded: false), forKey: "saveFolder")
         }
     }
 
@@ -52,6 +51,13 @@ final class Recorder: NSObject, ObservableObject {
     private var awake: NSObjectProtocol?
     private var widgetsWereHidden: Bool?
     private var session: String?  // the folder name of the current recording
+    /// A start or stop is in progress. A camera can take seconds to warm up, and a second ⌃⌥⇧R
+    /// meanwhile must not begin a second recording.
+    private var busy = false
+    /// Longest wait for the files to finish saving before stop() gives up on them.
+    static let saveTimeout: Duration = .seconds(30)
+
+    private var isDefaultFolder: Bool { folder.standardizedFileURL == Self.defaultFolder.standardizedFileURL }
 
     var mics: [AVCaptureDevice] {
         AVCaptureDevice.DiscoverySession(
@@ -70,8 +76,11 @@ final class Recorder: NSObject, ObservableObject {
     }
 
     func start() async {
-        guard !isRecording else { return }
+        guard !isRecording, !busy else { return }
+        busy = true
+        defer { busy = false }
         lastError = nil
+        unfinished = 0
         do {
             // An ad-hoc build is a new app to macOS after every rebuild, so this is the usual failure.
             guard CGPreflightScreenCaptureAccess() else {
@@ -79,7 +88,14 @@ final class Recorder: NSObject, ObservableObject {
                 throw RecError("Allow Screen It Recorder in System Settings → Privacy & Security → "
                     + "Screen & System Audio Recording, then quit and reopen it")
             }
-            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            // Create only the default folder. A chosen folder that is missing is usually a drive
+            // that is not connected; creating it would record onto the internal disk instead.
+            if isDefaultFolder {
+                try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            } else if !FileManager.default.fileExists(atPath: folder.path(percentEncoded: false)) {
+                throw RecError("The save folder \(folder.path(percentEncoded: false)) is not there. "
+                    + "Connect its drive, or choose another folder in Settings → Recording.")
+            }
             // On an SMB share both URL capacity keys come back 0/nil (measured on the fleet share);
             // statfs (via attributesOfFileSystem) reports the real figure there.
             let space = try folder.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey])
@@ -95,11 +111,22 @@ final class Recorder: NSObject, ObservableObject {
             let stamp = Self.stampFormat.string(from: .now)
             let dir = folder.appending(path: stamp, directoryHint: .isDirectory)
 
+            if let micID {
+                guard mics.contains(where: { $0.uniqueID == micID }) else {
+                    throw RecError("The chosen microphone is not connected. Connect it, or choose another one "
+                        + "in Settings → Recording.")
+                }
+                guard await AVCaptureDevice.requestAccess(for: .audio) else {
+                    throw RecError("Screen It Recorder has no permission to use the microphone.")
+                }
+            }
+
             let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
             guard !content.displays.isEmpty else { throw RecError("No displays found") }
             if let cameraID {
-                guard await AVCaptureDevice.requestAccess(for: .video) else { throw RecError("No camera permission") }
-                if micID != nil { _ = await AVCaptureDevice.requestAccess(for: .audio) }
+                guard await AVCaptureDevice.requestAccess(for: .video) else {
+                    throw RecError("Screen It Recorder has no permission to use the camera.")
+                }
                 camera = try CameraRecorder(cameraID: cameraID, micID: micID, fps: Int32(cameraFPS))
             }
 
@@ -143,19 +170,31 @@ final class Recorder: NSObject, ObservableObject {
     }
 
     func stop() async {
-        guard isRecording else { return }
+        guard isRecording, !busy else { return }
+        busy = true
+        defer { busy = false }
         status = "Saving…"
         camera?.stop()
         for stream in streams { try? await stream.stopCapture() }
         if unfinished > 0 {
+            // A file whose stream died may never report that it finished. Never wait forever:
+            // that would block the next recording and Quit.
+            let timeout = Task {
+                try? await Task.sleep(for: Self.saveTimeout)
+                guard !Task.isCancelled, unfinished > 0 else { return }
+                fail(RecError("\(unfinished) file(s) did not finish saving. They can be incomplete."))
+                unfinished = 1
+                finishedOne()
+            }
             await withCheckedContinuation { pendingFinishes.append($0) }
+            timeout.cancel()
         }
         await teardown()
         if lastError == nil { status = "Saved: \(session ?? "")" }
     }
 
     func openFolder() {
-        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        if isDefaultFolder { try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true) }
         NSWorkspace.shared.open(folder)
     }
 
@@ -208,7 +247,7 @@ final class Recorder: NSObject, ObservableObject {
 
     private func fail(_ error: Error) {
         lastError = error.localizedDescription
-        status = "Recording failed"
+        status = isRecording ? "● Recording, with an error" : "Recording failed"
         // Offer the System Settings pane when a missing permission is the likely cause.
         let fix: Permission? = !CGPreflightScreenCaptureAccess() ? .screen
             : cameraID != nil && Permission.camera.granted != true ? .camera

@@ -228,6 +228,9 @@ enum ErrorAlert {
         }
         guard !showing else { return }
         showing = true
+        // Both cover every display above the alert, and a modal alert blocks their Esc key.
+        GreenScreen.shared.hide()
+        Playback.shared.stop()
         DispatchQueue.main.async {
             MainActor.assumeIsolated {
                 let alert = NSAlert()

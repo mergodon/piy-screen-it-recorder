@@ -57,6 +57,7 @@ final class Playback: ObservableObject {
     private var beepObservers: [Any] = []
     private var endObserver: NSObjectProtocol?
     private var awake: NSObjectProtocol?
+    private var starting = false  // a second ⌃⌥P while start() awaits must not start twice
 
     init() {
         let d = UserDefaults.standard
@@ -163,7 +164,9 @@ final class Playback: ObservableObject {
     }
 
     func start() async {
-        guard state == .idle else { return }
+        guard state == .idle, !starting else { return }
+        starting = true
+        defer { starting = false }
         if followsLatest { await useLatest() }
         let screens = NSScreen.screens
         let targets = files.compactMap { id, url in
