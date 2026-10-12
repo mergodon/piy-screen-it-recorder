@@ -29,6 +29,10 @@ microphone in each file. Drop the files into Final Cut Pro and sync them on the 
   a countdown (Off / 3 / 5 / 10 s), a tick (Off or every 5–60 s), the last 5 seconds and the end.
   At the end it holds the last frame or restarts. ⌃⌥P or Space pauses, ⌃⌥⇧P restarts, Esc stops.
   The video's own sound is off by default. Your mic hears the beeps, so use headphones when it must not.
+- **Mouse clicks:** each click shows a red ripple (`#E2342B`) in the recording. Choose in
+  **Settings → Recording**: Off / While recording (default) / Always, the ripple length (1–30 s)
+  and the size. For a video you speed up, make the ripple longer by the same factor: 10× faster
+  needs 10 s, so the ripple still lasts about 1 s in the edit.
 - **Settings window** (menu → Settings…): all options, the shortcuts, and a live check of the
   Screen Recording, Camera and Microphone permissions with buttons to fix them.
 - Captures in sRGB, so the colours in the file match the screen and the file's BT.709 tag.

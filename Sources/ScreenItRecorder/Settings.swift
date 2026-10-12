@@ -122,6 +122,8 @@ private struct RecordingTab: View {
                     .font(.caption).foregroundStyle(.secondary)
             }
             .disabled(rec.isRecording)
+
+            ClickSection()
         }
         .formStyle(.grouped)
     }
@@ -135,6 +137,33 @@ private struct RecordingTab: View {
         panel.canCreateDirectories = true
         panel.directoryURL = rec.folder
         if panel.runModal() == .OK, let url = panel.url { rec.folder = url }
+    }
+}
+
+private struct ClickSection: View {
+    @ObservedObject private var clicks = ClickHighlight.shared
+
+    var body: some View {
+        Section {
+            Picker("Highlight clicks", selection: $clicks.mode) {
+                ForEach(ClickHighlight.Mode.allCases) { Text($0.label).tag($0) }
+            }
+            Picker("Ripple length", selection: $clicks.duration) {
+                ForEach(ClickHighlight.durations, id: \.self) { Text($0 == 1 ? "1 second" : "\($0) seconds").tag($0) }
+            }
+            .disabled(clicks.mode == .off)
+            Picker("Ripple size", selection: $clicks.size) {
+                ForEach(ClickHighlight.Size.allCases) { Text($0.label).tag($0) }
+            }
+            .disabled(clicks.mode == .off)
+        } header: {
+            Text("Mouse clicks")
+        } footer: {
+            Text("Each click shows a red ripple in the recording. For a video you speed up, make the ripple "
+                + "longer by the same factor: 10× faster needs 10 seconds. \"Always\" also shows it outside a recording, "
+                + "so you can try it.")
+                .font(.caption).foregroundStyle(.secondary)
+        }
     }
 }
 

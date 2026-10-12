@@ -19,6 +19,7 @@ struct ScreenItRecorderApp: App {
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ note: Notification) {
+        _ = MainActor.assumeIsolated { ClickHighlight.shared }  // follows the recording from now on
         HotKey.register(keyCode: kVK_ANSI_G, modifiers: controlKey | optionKey) {
             Task { @MainActor in GreenScreen.shared.toggle() }
         }
@@ -50,7 +51,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if launch.contains("--about") { MainActor.assumeIsolated { About.show() } }
         if CommandLine.arguments.contains("--playback") { MainActor.assumeIsolated { PlaybackPanel.show() } }
 
-        // `--test <seconds> [--green]`: record (optionally over green), stop, quit — a headless smoke test.
+        // `--test <seconds> [--green] [--clicks]`: record (optionally over green, with a click ripple
+        // in the centre of each display after 1 s), stop, quit — a headless smoke test.
         let args = CommandLine.arguments
 
         // `--test-play <seconds> [folder]`: play the latest recording (or that folder) with the saved playback settings,
@@ -81,7 +83,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 if args.contains("--green") { GreenScreen.shared.show() }
                 await rec.start()
                 print(rec.status)
-                try? await Task.sleep(for: .seconds(secs))
+                if args.contains("--clicks") {
+                    try? await Task.sleep(for: .seconds(1))
+                    for s in NSScreen.screens { ClickHighlight.shared.ripple(at: NSPoint(x: s.frame.midX, y: s.frame.midY)) }
+                    try? await Task.sleep(for: .seconds(max(0, secs - 1)))
+                } else {
+                    try? await Task.sleep(for: .seconds(secs))
+                }
                 await rec.stop()
                 GreenScreen.shared.hide()
                 print(rec.status)
