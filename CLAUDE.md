@@ -14,7 +14,7 @@
   then `ffprobe` the files in `~/Movies/ScreenItRecorder/`. Delete test recordings after — they contain screen content.
 - Run the `--test` binary from the terminal: TCC then uses the terminal's Screen Recording + Mic grant.
   `open`-ing an ad-hoc build re-prompts after every rebuild.
-- `rec` / `widgets` are the ffmpeg CLI fallback; keep their behaviour in step with the app.
+- `rec` / `widgets` are the ffmpeg CLI fallback; keep the folder and file names in step with the app. They have no quality, camera or click options; do not add them unless mate asks.
 - Tests share mate's prefs domain (`com.mergodon.ScreenItRecorder`). Read a key before a test
   writes it and restore that value after — never `delete` or reset to a default. Never
   `--install` (it quits the app) while his colour screen is up: check for layer-1000 windows first.
@@ -24,6 +24,6 @@
 Never edit these from here; file issues with `gh issue create -R <owner/repo>`.
 
 - **`mergodon/promptityourself-web`** — the PIY site; owns this project's page
-  (`src/content/projects/`). Page request: issue #116 (2026-10-11).
+  (`src/content/projects/`). The page is live at `https://promptityourself.com/projects/screen-it-recorder/` (#116 closed).
 - **Distribution: App Store later (mate, 2026-10-11)** — no Developer ID / notarised download, and the
   site page says nothing about dev builds or signing. Blockers are tracked in this repo's issues.

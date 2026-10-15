@@ -30,13 +30,13 @@ microphone in each file. Drop the files into Final Cut Pro and sync them on the 
   At the end it holds the last frame or restarts. ⌃⌥P or Space pauses, ⌃⌥⇧P restarts, Esc stops.
   The video's own sound is off by default. Your mic hears the beeps, so use headphones when it must not.
 - **Mouse clicks:** each click shows a red ripple (`#E2342B`) in the recording. Choose in
-  **Settings → Recording**: Off / While recording (default) / Always, the ripple length (1–30 s)
+  **Settings → Recording**: Off / While recording (default) / Always, the ripple length (1, 2, 3, 5, 10, 15, 20 or 30 s)
   and the size. For a video you speed up, make the ripple longer by the same factor: 10× faster
   needs 10 s, so the ripple still lasts about 1 s in the edit.
 - **Settings window** (menu → Settings…): all options, the shortcuts, and a live check of the
   Screen Recording, Camera and Microphone permissions with buttons to fix them.
 - Captures in sRGB, so the colours in the file match the screen and the file's BT.709 tag.
-- Hides your desktop widgets while it records and puts them back after.
+- Hides your desktop widgets while it records and puts them back after (a setting, on by default).
 - Keeps the display awake while it records.
 - Refuses to start with less than 10 GB free.
 - If you quit or log out during a recording, it saves the files first.
@@ -46,7 +46,7 @@ Recordings go to `~/Movies/ScreenItRecorder/<date_time>/`: `screen0.mov`, `scree
 
 ## Requirements
 
-- macOS 15 or later (uses ScreenCaptureKit's `SCRecordingOutput`).
+- macOS 15 or later (uses ScreenCaptureKit's microphone capture).
 - Swift 6 toolchain. The Command Line Tools are enough; you do not need Xcode.
 
 ## Build and run
@@ -68,7 +68,7 @@ rebuild. To sign a build that you share with other people, use your Developer ID
 SIGN_ID="Developer ID Application: <your name> (<team id>)" ./build.sh
 ```
 
-Smoke test without the UI (records 5 s, then quits; add `--green` to record over the green screen):
+Smoke test without the UI (records 5 s, then quits; add `--green` to record over the green screen, `--clicks` for a click ripple in the centre of each display):
 
 ```sh
 "build/Screen It Recorder.app/Contents/MacOS/ScreenItRecorder" --test 5
@@ -76,7 +76,7 @@ Smoke test without the UI (records 5 s, then quits; add `--green` to record over
 
 ## Command-line alternative
 
-`rec` does the same with `ffmpeg` (`brew install ffmpeg`). Press Ctrl-C to stop.
+`rec` records the two screens and the mic with `ffmpeg`, at fixed settings (12 Mbit/s HEVC 1440p; `REC_*` variables change them) (`brew install ffmpeg`). Press Ctrl-C to stop.
 `widgets off|on|status` toggles the desktop widgets by hand.
 
 ## License
